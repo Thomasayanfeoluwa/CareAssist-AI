@@ -3,14 +3,13 @@ langchain
 flask
 streamlit
 langchain_groq
-google-genai
 pypdf
 python-dotenv
 google-api-python-client
 pinecone[grpc]
 langchain-pinecone
 langchain_community
-langchain_google_genai
 langchain_experimental
 langchain-huggingface
+langchain-classic
 -e .

@@ -8,6 +8,7 @@ list_of_files = [
     "src/__init__.py",
     "src/helper.py",
     "src/prompt.py",
+    "templates/index.html"
     ".env",
     "setup.py",
     "app.py",

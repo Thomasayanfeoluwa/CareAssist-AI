@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CareAssist AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .chat-container {
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 80vh;
+    }
+    .chat-header {
+      background: #007bff;
+      color: white;
+      padding: 16px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+    .chat-box {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .message {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+    .user {
+      align-self: flex-end;
+      background: #007bff;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .bot {
+      align-self: flex-start;
+      background: #e9ecef;
+      color: #333;
+      border-bottom-left-radius: 4px;
+    }
+    .input-area {
+      display: flex;
+      padding: 12px;
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
+    }
+    #msg {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #ced4da;
+      border-radius: 25px;
+      font-size: 1rem;
+      outline: none;
+    }
+    #msg:focus {
+      border-color: #007bff;
+    }
+    button {
+      margin-left: 8px;
+      padding: 0 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .typing {
+      font-style: italic;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chat-container">
+    <div class="chat-header">CareBot Assistant</div>
+
+    <div class="chat-box" id="chatBox">
+      <div class="message bot">Hello! Ask me anything. I’ll use your documents and the web if needed.</div>
+    </div>
+
+    <form class="input-area" id="chatForm">
+      <input
+        type="text"
+        id="msg"
+        name="msg"
+        placeholder="Type your message..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById("chatBox");
+    const chatForm = document.getElementById("chatForm");
+    const msgInput = document.getElementById("msg");
+
+    // Scroll to bottom
+    const scrollToBottom = () => {
+      chatBox.scrollTop = chatBox.scrollHeight;
+    };
+
+    // Add message to chat
+    const addMessage = (text, type) => {
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", type);
+      msgDiv.textContent = text;
+      chatBox.appendChild(msgDiv);
+      scrollToBottom();
+    };
+
+    // Handle form submit
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const userText = msgInput.value.trim();
+      if (!userText) return;
+
+      // Show user message
+      addMessage(userText, "user");
+      msgInput.value = "";
+
+      // Show typing indicator
+      const typing = document.createElement("div");
+      typing.classList.add("message", "bot", "typing");
+      typing.textContent = "Thinking...";
+      chatBox.appendChild(typing);
+      scrollToBottom();
+
+      try {
+        const formData = new FormData();
+        formData.append("msg", userText);
+
+        const response = await fetch("/get", {
+          method: "POST",
+          body: formData
+        });
+
+        const botReply = await response.text();
+
+        // Remove typing indicator
+        typing.remove();
+
+        // Show bot reply
+        addMessage(botReply, "bot");
+      } catch (err) {
+        typing.remove();
+        addMessage("Error: Could not connect.", "bot");
+      }
+    });
+
+    // Initial scroll
+    scrollToBottom();
+  </script>
+
+</body>
+</html>
