@@ -1,13 +1,13 @@
-from Flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request
 from src.helper import download_gugging_face_embeddings
+from src.prompt import build_system_prompt, build_user_prompt
 from langchain_pinecone import PineconeVectorStore
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from dotenv import load_dotenv
-from src.prompt import *
+# from src.prompt import *
 from langchain_groq import ChatGroq
 from googleapiclient.discovery import build
 from langchain_classic.chains import create_retrieval_chain
-from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 import os
 
@@ -72,14 +72,23 @@ def answer_query(user_query: str):
     context_str = "\n".join(content_pieces)
     
     # Construct prompt
-    prompt = (
-        f"User asked: {user_query}\n"
-        f"Context:\n{context_str}\n"
-        "Answer:"
-    )
+    # prompt = (
+    #     f"User asked: {user_query}\n"
+    #     f"Context:\n{context_str}\n"
+    #     "Answer:"
+    # )
+
+    # Build prompts
+    system_prompt = build_system_prompt()
+    user_prompt = build_user_prompt(user_query, context_str)
+
+    response = llm.invoke([
+            ("system", system_prompt),
+            ("user", user_prompt)
+        ])
 
     # Generate answer
-    response = llm.invoke([("user", prompt)])
+    # response = llm.invoke([("user", system_prompt)])
     return response.content
 
 
@@ -95,3 +104,7 @@ def chat():
     print("Response:", response)
     return response
 
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port="8080", debug=True)
