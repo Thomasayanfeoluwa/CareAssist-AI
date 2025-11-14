@@ -22,20 +22,17 @@ def load_resources():
     docsearch = PineconeVectorStore.from_existing_index(
         index_name="carebot", embedding=embeddings
     )
-    retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k': 3})
-
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.3,
         groq_api_key=GROQ_API_KEY
     )
-
     memory = ConversationBufferWindowMemory(k=5, return_messages=True)
     return docsearch, llm, memory
 
 docsearch, llm, memory = load_resources()
 
-# === Google Search Function ===
+# === Google Search ===
 def google_search(query, api_key, cse_id, num_results=5):
     try:
         service = build("customsearch", "v1", developerKey=api_key)
@@ -46,28 +43,20 @@ def google_search(query, api_key, cse_id, num_results=5):
             for item in items
         ]
     except Exception as e:
-        st.error(f"Web search failed: {e}")
+        st.error(f"Web search error: {e}")
         return []
 
-# === Answer Query with Memory + RAG ===
+# === Answer Query ===
 def answer_query(user_query: str):
-    # Retrieve from PDFs
     pdf_results = docsearch.similarity_search(user_query, k=3)
-
-    # Web fallback
     web_results = []
     if not pdf_results or len(pdf_results) < 2:
         web_results = google_search(user_query, GOOGLE_CSE_API_KEY, GOOGLE_CSE_ID)
 
     context = pdf_results + web_results
-
     if not context:
-        return (
-            "I'm sorry, but I do not have enough information from the available sources to answer your question. "
-            "Please consult a qualified health professional for guidance."
-        )
+        return "I'm sorry, but I do not have enough information from the available sources to answer your question. Please consult a qualified health professional for guidance."
 
-    # Build context string
     content_pieces = []
     for r in context:
         if isinstance(r, dict):
@@ -78,14 +67,12 @@ def answer_query(user_query: str):
             content_pieces.append(f"**Source: PDF**\n{r.page_content}")
     context_str = "\n\n---\n\n".join(content_pieces)
 
-    # Get chat history
     history = memory.load_memory_variables({})["history"]
     history_str = ""
     for msg in history:
         role = "User" if msg.type == "human" else "Assistant"
         history_str += f"{role}: {msg.content}\n"
 
-    # Build prompt
     system_prompt = build_system_prompt()
     user_prompt = (
         f"### Chat History (Last 5 exchanges):\n{history_str}\n"
@@ -97,150 +84,262 @@ def answer_query(user_query: str):
         "Answer:"
     )
 
-    # Invoke LLM
     response = llm.invoke([
         ("system", system_prompt),
         ("user", user_prompt)
     ])
-
     return response.content
 
-# === Streamlit UI ===
-st.set_page_config(page_title="CareAssist AI", layout="centered")
+# === Streamlit Page Config ===
+st.set_page_config(page_title="CareAssist AI", layout="centered", initial_sidebar_state="collapsed")
 
-# Custom CSS
+# === Inject Exact HTML/CSS/JS ===
 st.markdown("""
-<style>
-    .main { background-color: #f0f2f5; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CareAssist AI</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f0f2f5;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
     .chat-container {
-        max-width: 600px;
-        margin: auto;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        height: 80vh;
+      width: 100%;
+      max-width: 600px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 80vh;
     }
-    .header {
-        background: #007bff;
-        color: white;
-        padding: 12px 16px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-weight: 600;
+    .chat-header {
+      background: #007bff;
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+      gap: 12px;
     }
-    .user_img {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.3);
-        position: relative;
+    .chat-header img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.3);
     }
-    .online_icon {
-        position: absolute;
-        bottom: 0;
-        right: 0;
-        width: 12px;
-        height: 12px;
-        background: #28a745;
-        border: 2px solid white;
-        border-radius: 50%;
-        transform: translate(20%, 20%);
+    .chat-header .title {
+      flex: 1;
     }
     .chat-box {
-        flex: 1;
-        padding: 16px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
     .message {
-        max-width: 80%;
-        padding: 10px 14px;
-        border-radius: 18px;
-        line-height: 1.5;
-        word-wrap: break-word;
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 18px;
+      line-height: 1.4;
+      word-wrap: break-word;
     }
-    .user { align-self: flex-end; background: #007bff; color: white; border-bottom-right-radius: 4px; }
-    .bot { align-self: flex-start; background: #e9ecef; color: #333; border-bottom-left-radius: 4px; }
+    .user {
+      align-self: flex-end;
+      background: #007bff;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .bot {
+      align-self: flex-start;
+      background: #e9ecef;
+      color: #333;
+      border-bottom-left-radius: 4px;
+    }
     .input-area {
-        padding: 12px;
-        background: #f8f9fa;
-        border-top: 1px solid #dee2e6;
+      display: flex;
+      padding: 12px;
+      background: #f8f9fa;
+      border-top: 1px solid #dee2e6;
     }
-    .stTextInput > div > div > input {
-        border-radius: 25px;
-        padding: 12px 16px;
-        border: 1px solid #ced4da;
+    #msg {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid #ced4da;
+      border-radius: 25px;
+      font-size: 1rem;
+      outline: none;
+      max-width: none;
+      width: 100%;
     }
-    .stButton > button {
-        border-radius: 25px;
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 0 20px;
-        margin-left: 8px;
+    #msg:focus {
+      border-color: #007bff;
     }
-</style>
-""", unsafe_allow_html=True)
+    button {
+      margin-left: 8px;
+      padding: 0 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .typing {
+      font-style: italic;
+      color: #666;
+    }
+    .message table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 0.92rem;
+    }
+    .message th, .message td {
+      border: 1px solid #ccc;
+      padding: 7px 9px;
+      text-align: left;
+    }
+    .message th {
+      background-color: #f5f7fa;
+      font-weight: 600;
+    }
+    .message ul, .message ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .message li {
+      margin: 4px 0;
+    }
+  </style>
+</head>
+<body>
 
-# Chat container
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-
-# Header
-st.markdown("""
-<div class="header">
-    <div style="position: relative;">
-        <img src="https://cdn-icons-png.flaticon.com/512/387/387569.png" class="user_img">
-        <span class="online_icon"></span>
+  <div class="chat-container">
+    <div class="chat-header">
+      <img src="static/nurse_avatar.png" alt="Nurse">
+      <div class="title">CareAssist AI</div>
     </div>
-    <div>CareAssist AI</div>
-</div>
+
+    <div class="chat-box" id="chatBox">
+      <div class="message bot">Hello! Ask me anything about your Health. I am your Care Assistant.</div>
+    </div>
+
+    <form class="input-area" id="chatForm">
+      <input type="text" id="msg" name="msg" placeholder="Type your message..." autocomplete="off" required />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById("chatBox");
+    const chatForm = document.getElementById("chatForm");
+    const msgInput = document.getElementById("msg");
+
+    const scrollToBottom = () => {
+      chatBox.scrollTop = chatBox.scrollHeight;
+    };
+
+    const addMessage = (text, type) => {
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", type);
+      if (type === "bot") {
+        msgDiv.innerHTML = marked.parse(text);
+      } else {
+        msgDiv.textContent = text;
+      }
+      chatBox.appendChild(msgDiv);
+      scrollToBottom();
+    };
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const userText = msgInput.value.trim();
+      if (!userText) return;
+
+      addMessage(userText, "user");
+      msgInput.value = "";
+
+      const typing = document.createElement("div");
+      typing.classList.add("message", "bot", "typing");
+      typing.textContent = "Thinking...";
+      chatBox.appendChild(typing);
+      scrollToBottom();
+
+      try {
+        const formData = new FormData();
+        formData.append("msg", userText);
+
+        const response = await fetch("/get", { method: "POST", body: formData });
+        const botReply = await response.text();
+
+        typing.remove();
+        addMessage(botReply, "bot");
+      } catch (err) {
+        typing.remove();
+        addMessage("Error: Could not connect.", "bot");
+      }
+    });
+
+    scrollToBottom();
+  </script>
+
+</body>
+</html>
 """, unsafe_allow_html=True)
 
-# Chat box
-chat_box = st.container()
-with chat_box:
-    st.markdown('<div class="chat-box">', unsafe_allow_html=True)
-    for msg in st.session_state.get("messages", []):
-        role = "user" if msg["role"] == "user" else "bot"
-        st.markdown(f'<div class="message {role}">{msg["content"]}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+# === Streamlit Backend Logic (Hidden from UI) ===
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Input area
-st.markdown('<div class="input-area">', unsafe_allow_html=True)
-with st.form(key="chat_form", clear_on_submit=True):
-    cols = st.columns([5, 1])
-    with cols[0]:
-        user_input = st.text_input("Type your message...", key="input", label_visibility="collapsed")
-    with cols[1]:
-        submit = st.form_submit_button("Send")
+# Handle form submit via Streamlit (simulate /get POST)
+user_input = st.text_input("", key="streamlit_input", label_visibility="collapsed")
+if st.button("Send", key="send_btn"):
+    if user_input.strip():
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": user_input})
 
-if submit and user_input:
-    # Add user message
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-    st.session_state.messages.append({"role": "user", "content": user_input})
+        # Generate response
+        with st.spinner(""):
+            ai_response = answer_query(user_input)
+            st.session_state.messages.append({"role": "bot", "content": ai_response})
 
-    # Generate AI response
-    with st.spinner("Thinking..."):
-        ai_response = answer_query(user_input)
-        st.session_state.messages.append({"role": "bot", "content": ai_response})
+            # Save to memory
+            memory.save_context({"input": user_input}, {"output": ai_response})
 
-        # Save to memory
-        memory.save_context({"input": user_input}, {"output": ai_response})
+        st.rerun()
 
-    st.rerun()
-
-st.markdown('</div></div>', unsafe_allow_html=True)
+# === Render Messages Dynamically (Streamlit) ===
+for msg in st.session_state.messages:
+    role = "user" if msg["role"] == "user" else "bot"
+    if role == "bot":
+        st.markdown(f'<div class="message bot">{marked.parse(msg["content"])}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="message user">{msg["content"]}</div>', unsafe_allow_html=True)
 
 # Initial message
-if not st.session_state.get("messages"):
+if not st.session_state.messages:
     st.session_state.messages = [
-        {"role": "bot", "content": "Hello! Ask me anything about your health. I am your Care Assistant."}
+        {"role": "bot", "content": "Hello! Ask me anything about your Health. I am your Care Assistant."}
     ]
     st.rerun()
