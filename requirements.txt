@@ -12,4 +12,5 @@ langchain_community
 langchain_experimental
 langchain-huggingface
 langchain-classic
+markdown
 -e .

@@ -4,11 +4,11 @@ from src.prompt import build_system_prompt, build_user_prompt
 from langchain_pinecone import PineconeVectorStore
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from dotenv import load_dotenv
-# from src.prompt import *
 from langchain_groq import ChatGroq
 from googleapiclient.discovery import build
 from langchain_classic.chains import create_retrieval_chain
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_classic.memory import ConversationBufferWindowMemory
 import os
 
 
@@ -35,8 +35,9 @@ retriever = docsearch.as_retriever(search_type = "similarity", search_kwargs = {
 
 # Use the API key explicitly
 llm = ChatGroq(
-    model="openai/gpt-oss-20b",
-    temperature=0.4,
+    model="llama-3.3-70b-versatile",
+    # "openai/gpt-oss-20b"
+    temperature=0.3,
     groq_api_key=GROQ_API_KEY
 )
 
@@ -49,60 +50,115 @@ def google_search(query, api_key, cse_id, num_results=5):
         for item in items
     ]
 
+
+
+
 def answer_query(user_query: str):
     # Retrieve from PDFs
     pdf_results = docsearch.similarity_search(user_query, k=3)
 
-    # Decide if fallback to web search is needed
+    # Web fallback
+    web_results = []
     if not pdf_results or len(pdf_results) < 2:
         web_results = google_search(user_query, GOOGLE_CSE_API_KEY, GOOGLE_CSE_ID)
-        context     = pdf_results + web_results
-    else:
-        context = pdf_results
 
-    # Build the context string by handling both types
+    context = pdf_results + web_results
+
+    if not context:
+        return (
+            "I'm sorry, but I do not have enough information from the available sources to answer your question. "
+            "Please consult a qualified health professional for guidance."
+        )
+
+    # Build context with source labels
     content_pieces = []
     for r in context:
         if isinstance(r, dict):
-            content_pieces.append(r.get("snippet", ""))
+            content_pieces.append(
+                f"Source: Web Search\nTitle: {r.get('title','')}\nSnippet: {r.get('snippet','')}\nLink: {r.get('link','')}"
+            )
         else:
-            # r is a Document object
-            content_pieces.append(r.page_content)
+            content_pieces.append(f"Source: PDF\n{r.page_content}")
+    context_str = "\n\n".join(content_pieces)
 
-    context_str = "\n".join(content_pieces)
-    
-    # Construct prompt
-    # prompt = (
-    #     f"User asked: {user_query}\n"
-    #     f"Context:\n{context_str}\n"
-    #     "Answer:"
-    # )
+    # === GET CHAT HISTORY (Last 5 exchanges) ===
+    history = memory.load_memory_variables({})["history"]
+    history_str = ""
+    for msg in history:
+        role = "User" if msg.type == "human" else "Assistant"
+        history_str += f"{role}: {msg.content}\n"
 
-    # Build prompts
+    # === BUILD PROMPTS ===
     system_prompt = build_system_prompt()
-    user_prompt = build_user_prompt(user_query, context_str)
 
+    user_prompt = (
+        f"### Chat History (Last 5 exchanges):\n{history_str}\n"
+        f"### Current User Question:\n{user_query}\n\n"
+        f"### Context (PDFs + Web Search):\n{context_str}\n\n"
+        "Answer only the current question using the context and history. "
+        "Be professional, clear, and cite sources. "
+        "End with a reminder to consult a doctor.\n"
+        "Answer:"
+    )
+
+    # === INVOKE LLM WITH SYSTEM + HISTORY + USER ===
     response = llm.invoke([
-            ("system", system_prompt),
-            ("user", user_prompt)
-        ])
+        ("system", system_prompt),
+        ("user", user_prompt)
+    ])
 
-    # Generate answer
-    # response = llm.invoke([("user", system_prompt)])
     return response.content
 
 
+
+# Initialize memory
+memory = ConversationBufferWindowMemory(
+    k=5, 
+    return_messages=True
+)
 
 @app.route("/")
 def index():
     return render_template("chat.html")
 
-@app.route("/get", methods = ["GET", "POST"])
+
+
+
+@app.route("/get", methods=["GET", "POST"])
 def chat():
-    msg = request.form["msg"]
-    response = answer_query(msg)
-    print("Response:", response)
-    return response
+    user_query = request.form["msg"]
+
+    # Generate answer (uses memory)
+    ai_response = answer_query(user_query)
+
+    # Save to memory AFTER generating answer
+    memory.save_context({"input": user_query}, {"output": ai_response})
+
+    # Optional: debug print
+    last_5 = memory.load_memory_variables({})["history"]
+    print("Last 5 chat history:\n", last_5)
+
+    return ai_response
+
+
+
+
+
+# @app.route("/get", methods = ["GET", "POST"])
+# def chat():
+#     user_query = request.form["msg"]
+
+#     # Generate answer
+#     ai_response = answer_query(user_query)
+
+#     # Save to memory
+#     memory.save_context({"input": user_query}, {"output": ai_response})
+
+#     # Optional: build last 5 exchanges as context for future LLM calls
+#     last_5_history = memory.load_memory_variables({})["history"]
+#     print("Last 5 chat history:\n", last_5_history)
+
+#     return ai_response
 
 
 
