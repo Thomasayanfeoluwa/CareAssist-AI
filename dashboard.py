@@ -19,7 +19,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 @st.cache_resource
 def load_resources():
     embeddings = download_gugging_face_embeddings()
-    docsearch = PineconeVectorStore.from_existing_index(
+    docsearch = Pinecone.from_existing_index(
         index_name="carebot", embedding=embeddings
     )
     retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k': 3})
