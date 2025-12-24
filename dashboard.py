@@ -1,12 +1,11 @@
 import streamlit as st
 from src.helper import download_gugging_face_embeddings
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage 
 from src.prompt import build_system_prompt
 from langchain_pinecone import Pinecone
 from langchain_groq import ChatGroq
 from googleapiclient.discovery import build
-# from langchain_classic.memory import ConversationBufferWindowMemory
-from langchain.memory import ConversationBufferWindowMemory
+from langchain_classic.memory import ConversationBufferWindowMemory  
 from dotenv import load_dotenv
 import os
 
