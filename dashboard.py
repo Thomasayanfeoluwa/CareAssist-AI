@@ -1,10 +1,12 @@
 import streamlit as st
 from src.helper import download_gugging_face_embeddings
+from langchain.schema import SystemMessage, HumanMessage
 from src.prompt import build_system_prompt
 from langchain_pinecone import Pinecone
 from langchain_groq import ChatGroq
 from googleapiclient.discovery import build
-from langchain_classic.memory import ConversationBufferWindowMemory
+# from langchain_classic.memory import ConversationBufferWindowMemory
+from langchain.memory import ConversationBufferWindowMemory
 from dotenv import load_dotenv
 import os
 
@@ -99,8 +101,10 @@ def answer_query(user_query: str):
 
     # Invoke LLM
     response = llm.invoke([
-        ("system", system_prompt),
-        ("user", user_prompt)
+        # ("system", system_prompt),
+        # ("user", user_prompt)
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt)
     ])
 
     return response.content
