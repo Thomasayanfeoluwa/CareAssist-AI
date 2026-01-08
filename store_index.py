@@ -10,10 +10,17 @@ from src.helper import load_pdf_file, text_split, download_gugging_face_embeddin
 load_dotenv()
 
 # Read API key from environment variable
-PINECONE_API_KEY=os.environ.get('PINECONE_API_KEY')
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-if PINECONE_API_KEY is None:
-    raise ValueError("PINECONE_API_KEY environment variable is not set.")
+# PINECONE_API_KEY=os.environ.get('PINECONE_API_KEY')
+# PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+# if PINECONE_API_KEY is None:
+#     raise ValueError("PINECONE_API_KEY environment variable is not set.")
+
+PINECONE_API_KEY = st.secrets.get("PINECONE_API_KEY")
+PINECONE_ENVIRONMENT = st.secrets.get("PINECONE_ENVIRONMENT")
+
+if not PINECONE_API_KEY:
+    raise ValueError("PINECONE_API_KEY is not set in Streamlit secrets")
+
 
 extracted_data=load_pdf_file(data='Data/')
 text_chunks = text_split(extracted_data)
