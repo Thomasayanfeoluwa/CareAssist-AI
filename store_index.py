@@ -15,8 +15,8 @@ load_dotenv()
 # if PINECONE_API_KEY is None:
 #     raise ValueError("PINECONE_API_KEY environment variable is not set.")
 
-PINECONE_API_KEY = st.secrets.get("PINECONE_API_KEY")
-PINECONE_ENVIRONMENT = st.secrets.get("PINECONE_ENVIRONMENT")
+PINECONE_API_KEY = st.secrets.get("PINECONE_API_KEY").strip()
+PINECONE_ENVIRONMENT = st.secrets.get("PINECONE_ENVIRONMENT").strip()
 
 if not PINECONE_API_KEY:
     raise ValueError("PINECONE_API_KEY is not set in Streamlit secrets")
