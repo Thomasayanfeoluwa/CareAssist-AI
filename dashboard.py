@@ -160,11 +160,16 @@ if prompt := st.chat_input("Type your health question here..."):
                 # Save to memory
                 memory.save_context({"input": prompt}, {"output": response})
                 
-            except Exception as e:
-                error_message = "I apologize, but I'm experiencing technical difficulties. Please try again in a moment."
-                st.error(error_message)
-                st.session_state.messages.append({"role": "assistant", "content": error_message})
+            # except Exception as e:
+            #     error_message = "I apologize, but I'm experiencing technical difficulties. Please try again in a moment."
+            #     st.error(error_message)
+            #     st.session_state.messages.append({"role": "assistant", "content": error_message})
 
+            except Exception as e:
+                st.error(f"Actual error: {type(e).__name__}: {e}")
+                st.session_state.messages.append({"role": "assistant", "content": f"Error: {type(e).__name__}"})
+
+            
 # Sidebar with information
 with st.sidebar:
     st.header("ℹ️ About CareAssist")
