@@ -14,7 +14,7 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY").strip()
 GOOGLE_CSE_API_KEY = st.secrets.get("GOOGLE_CSE_API_KEY")
 GOOGLE_CSE_ID = st.secrets.get("GOOGLE_CSE_ID")
 
-st.write("GROQ API key loaded:", "Yes" if GROQ_API_KEY else "No")
+# st.write("GROQ API key loaded:", "Yes" if GROQ_API_KEY else "No")
 
 # load_dotenv()
 # GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
