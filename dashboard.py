@@ -30,7 +30,7 @@ def load_resources():
     )
     retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k': 3})
 
-    st.write(f"GROQ API key loaded: {GROQ_API_KEY!r}")
+    # st.write(f"GROQ API key loaded: {GROQ_API_KEY!r}")
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.3,
