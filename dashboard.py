@@ -14,12 +14,6 @@ GROQ_API_KEY = st.secrets.get("GROQ_API_KEY").strip()
 GOOGLE_CSE_API_KEY = st.secrets.get("GOOGLE_CSE_API_KEY")
 GOOGLE_CSE_ID = st.secrets.get("GOOGLE_CSE_ID")
 
-# st.write("GROQ API key loaded:", "Yes" if GROQ_API_KEY else "No")
-
-# load_dotenv()
-# GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
-# GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY")
-# GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # === Initialize Components ===
 @st.cache_resource
@@ -30,7 +24,6 @@ def load_resources():
     )
     retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k': 3})
 
-    # st.write(f"GROQ API key loaded: {GROQ_API_KEY!r}")
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         temperature=0.3,
