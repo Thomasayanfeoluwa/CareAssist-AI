@@ -11,6 +11,7 @@ from app.api.routes import router
 from app.config import Settings, get_settings
 from app.logging_setup import configure_logging
 from app.ratelimit import limiter
+from app.services.session_store import build_session_store
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="CareAssist API", version=settings.APP_VERSION)
     app.state.limiter = limiter
     app.state.settings = settings
+    app.state.session_store = build_session_store(settings)
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
     @app.middleware("http")
@@ -83,7 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
         expose_headers=["X-Request-ID"],
