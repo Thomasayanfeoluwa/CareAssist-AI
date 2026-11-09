@@ -24,8 +24,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Annotated[str, Field(min_length=1)]
     OPENROUTER_API_KEY: Annotated[str, Field(min_length=1)]
     PINECONE_API_KEY: Annotated[str, Field(min_length=1)]
-    GOOGLE_CSE_API_KEY: Annotated[str, Field(min_length=1)]
-    GOOGLE_CSE_ID: Annotated[str, Field(min_length=1)]
+    TAVILY_API_KEY: Annotated[str, Field(min_length=1)]
     SESSION_SECRET: Annotated[str, Field(min_length=32)]
     PILOT_AUTH_TOKEN: Annotated[str, Field(min_length=16)]
 

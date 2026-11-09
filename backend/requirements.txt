@@ -14,6 +14,7 @@ pypdf-5.1.0
 
 litellm==1.55.0
 
+tavily-python==0.8.5
 pinecone==5.4.2
 langchain-pinecone==0.2.1
 langchain-huggingface==0.1.2

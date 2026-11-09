@@ -9,8 +9,7 @@ REQUIRED = [
     "GROQ_API_KEY",
     "OPENROUTER_API_KEY",
     "PINECONE_API_KEY",
-    "GOOGLE_CSE_API_KEY",
-    "GOOGLE_CSE_ID",
+    "TAVILY_API_KEY",
     "SESSION_SECRET",
     "PILOT_AUTH_TOKEN",
 ]
@@ -21,8 +20,7 @@ def _all_required() -> dict[str, str]:
         "GROQ_API_KEY": "x",
         "OPENROUTER_API_KEY": "x",
         "PINECONE_API_KEY": "x",
-        "GOOGLE_CSE_API_KEY": "x",
-        "GOOGLE_CSE_ID": "x",
+        "TAVILY_API_KEY": "x",
         "SESSION_SECRET": "y" * 32,
         "PILOT_AUTH_TOKEN": "pilot-token-XYZ12",
     }

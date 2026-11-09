@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.logging_setup import configure_logging
 from app.ratelimit import limiter
 from app.services.session_store import build_session_store
+from app.services.rag import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = limiter
     app.state.settings = settings
     app.state.session_store = build_session_store(settings)
+    app.state.rag = RAGService(settings)
     app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
     @app.middleware("http")

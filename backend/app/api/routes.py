@@ -5,6 +5,7 @@ from app.api.deps import SettingsDep, get_or_set_session_id, require_bearer_toke
 from app.prompts.system import build_system_prompt
 from app.ratelimit import limiter
 from app.services.llm import LLMService
+from app.services.rag import RAGService, RetrievedChunk
 from app.services.session_store import SessionStore
 
 router = APIRouter()
@@ -47,33 +48,54 @@ async def chat(
 ) -> ChatResponse:
     request_id: str = getattr(request.state, "request_id", "unknown")
     store: SessionStore = request.app.state.session_store
+    rag: RAGService = request.app.state.rag
 
-    # 1. Load prior history BEFORE appending the current message
+    # 1. Load prior conversation for this session
     history = await store.get(session_id)
     history_str = "".join(
         f"{'User' if h.role == 'user' else 'Assistant'}: {h.content}\n"
         for h in history
     )
 
-    # 2. Produce reply (mock short-circuits, no history-dependent reply)
+    # 2. Retrieval + LLM (skipped in mock mode)
+    chunks: list[RetrievedChunk] = []
     if settings.LLM_MOCK:
         reply = f"[mock] You said: {body.message}"
         model = "mock"
     else:
-        llm = LLMService(settings)
+        # Real retrieval: PDF first, web fallback if PDF weak
+        chunks = await rag.retrieve(body.message)
+        context_str = rag.assemble_context(chunks)
+
+        # Build user prompt: history + context + current question
+        parts: list[str] = []
         if history_str:
-            user_prompt = (
-                f"### Chat History (last {len(history)} messages):\n{history_str}\n"
-                f"### Current User Question:\n{body.message}\n"
-            )
+            parts.append(f"### Previous conversation:\n{history_str}")
+        if context_str:
+            parts.append(f"### Retrieved context:\n{context_str}")
         else:
-            user_prompt = body.message
+            parts.append("### Retrieved context:\n(no relevant context found)")
+        parts.append(f"### Current question:\n{body.message}")
+        user_prompt = "\n\n".join(parts)
+
+        llm = LLMService(settings)
         result = await llm.complete(build_system_prompt(), user_prompt)
         reply = result.content
         model = result.model
 
-    # 3. Persist the exchange so the next request sees it
+    # 3. Persist the exchange for the next request
     await store.append(session_id, "user", body.message)
     await store.append(session_id, "assistant", reply)
 
-    return ChatResponse(reply=reply, model=model, request_id=request_id)
+    # 4. Structured sources for the frontend (hover popover)
+    sources = [
+        Source(type=c.source, title=c.title, page=c.page, link=c.link)
+        for c in chunks
+    ]
+
+    return ChatResponse(
+        reply=reply,
+        model=model,
+        sources=sources,
+        request_id=request_id,
+    )

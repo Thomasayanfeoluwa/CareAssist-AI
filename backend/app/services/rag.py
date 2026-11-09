@@ -73,18 +73,50 @@ class PineconeRetriever:
 
 
 class RAGService:
-    """Combined retrieval: PDF first, web fallback when PDF is weak."""
+    """Combined retrieval: PDF first, web fallback when PDF is weak.
+
+    All external clients are built lazily on first retrieve() call, so
+    importing this module (and therefore importing app.main) never touches
+    the network. This matters for tests: conftest imports app.main, and a
+    network call there would fail with fake credentials.
+    """
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._pdf: PineconeRetriever | None = (
-            PineconeRetriever(settings) if settings.PINECONE_API_KEY else None
-        )
-        self._web: WebSearchService | None = (
-            WebSearchService(settings)
-            if settings.GOOGLE_CSE_API_KEY and settings.GOOGLE_CSE_ID
-            else None
-        )
+        self._pdf: PineconeRetriever | None = None
+        self._web: WebSearchService | None = None
+        self._pdf_built = False
+        self._web_built = False
+
+    def _ensure_pdf(self) -> PineconeRetriever | None:
+        if self._pdf_built:
+            return self._pdf
+        self._pdf_built = True
+        if not self._settings.PINECONE_API_KEY:
+            return None
+        try:
+            self._pdf = PineconeRetriever(self._settings)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "rag_pdf_init_failed error_type=%s", type(exc).__name__
+            )
+            self._pdf = None
+        return self._pdf
+
+    def _ensure_web(self) -> WebSearchService | None:
+        if self._web_built:
+            return self._web
+        self._web_built = True
+        if not self._settings.TAVILY_API_KEY:
+            return None
+        try:
+            self._web = WebSearchService(self._settings)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "rag_web_init_failed error_type=%s", type(exc).__name__
+            )
+            self._web = None
+        return self._web
 
     async def retrieve(
         self, query: str, top_k: int = DEFAULT_TOP_K
@@ -93,11 +125,10 @@ class RAGService:
             return []
 
         pdf_chunks: list[RetrievedChunk] = []
-        if self._pdf is not None:
+        pdf = self._ensure_pdf()
+        if pdf is not None:
             try:
-                pdf_chunks = await asyncio.to_thread(
-                    self._pdf.retrieve, query, top_k
-                )
+                pdf_chunks = await asyncio.to_thread(pdf.retrieve, query, top_k)
             except Exception as exc:
                 logger.warning(
                     "rag_pdf_retrieve_failed error_type=%s", type(exc).__name__
@@ -118,9 +149,10 @@ class RAGService:
             return pdf_chunks
 
         web_chunks: list[RetrievedChunk] = []
-        if self._web is not None:
+        web = self._ensure_web()
+        if web is not None:
             try:
-                web_chunks = await self._web.search(
+                web_chunks = await web.search(
                     query, num_results=self._settings.RAG_WEB_RESULTS
                 )
             except Exception as exc:

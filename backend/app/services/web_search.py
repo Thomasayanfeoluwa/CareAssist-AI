@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import logging
-from typing import Any
 
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from tavily import AsyncTavilyClient, TavilyClient
 
 from app.config import Settings
 from app.services.types import RetrievedChunk
@@ -13,94 +10,98 @@ from app.services.types import RetrievedChunk
 logger = logging.getLogger(__name__)
 
 DEFAULT_NUM_RESULTS = 5
+_MAX_RESULTS = 20
+_REQUEST_TIMEOUT = 15.0
 
 
 class WebSearchService:
-    """Google Custom Search wrapper. Failures return [] — never raise."""
+    """Tavily web search wrapper. Failures return [] — never raise.
+
+    Basic search depth costs 1 credit. Free tier: 1,000 credits/month.
+    We use the native async client for the route path, and the sync client
+    for tests and for any synchronous callers.
+    """
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._service: Any | None = None
-        self._init_attempted = False
+        key = settings.TAVILY_API_KEY
+        self._sync: TavilyClient | None = TavilyClient(api_key=key) if key else None
+        self._async: AsyncTavilyClient | None = (
+            AsyncTavilyClient(api_key=key) if key else None
+        )
 
-    def _get_service(self) -> Any | None:
-        if self._init_attempted:
-            return self._service
-        self._init_attempted = True
-        if not (self._settings.GOOGLE_CSE_API_KEY and self._settings.GOOGLE_CSE_ID):
-            return None
-        try:
-            self._service = build(
-                "customsearch",
-                "v1",
-                developerKey=self._settings.GOOGLE_CSE_API_KEY,
-                cache_discovery=False,
-            )
-        except Exception as exc:
-            logger.warning(
-                "web_search_init_failed error_type=%s", type(exc).__name__
-            )
-            return None
-        return self._service
+    @staticmethod
+    def _clamp(n: int) -> int:
+        return min(max(int(n), 1), _MAX_RESULTS)
 
-    def search_sync(
-        self, query: str, num_results: int = DEFAULT_NUM_RESULTS
-    ) -> list[RetrievedChunk]:
-        if not query.strip():
-            return []
-        service = self._get_service()
-        if service is None:
-            return []
-        try:
-            res = (
-                service.cse()
-                .list(
-                    q=query,
-                    cx=self._settings.GOOGLE_CSE_ID,
-                    num=min(max(num_results, 1), 10),
-                )
-                .execute()
-            )
-        except HttpError as exc:
-            # Google's error body explains *why* the request was rejected
-            # (bad key vs bad cx vs API-not-enabled vs referrer block).
-            try:
-                detail = exc.content.decode("utf-8", errors="replace")[:500]
-            except Exception:
-                detail = "<unreadable>"
-            logger.warning(
-                "web_search_http_error status=%s reason=%s body=%s",
-                exc.status_code,
-                exc.reason,
-                detail,
-            )
-            return []
-        except Exception as exc:
-            logger.warning(
-                "web_search_failed error_type=%s", type(exc).__name__
-            )
-            return []
-
-        items = res.get("items", []) or []
+    @staticmethod
+    def _parse(resp: dict) -> list[RetrievedChunk]:
         out: list[RetrievedChunk] = []
-        for item in items:
-            link = item.get("link", "").strip()
-            title = item.get("title", "Unknown source").strip() or "Unknown source"
-            snippet = item.get("snippet", "").strip()
-            if not link or not snippet:
+        for item in (resp.get("results") or []):
+            url = (item.get("url") or "").strip()
+            content = (item.get("content") or "").strip()
+            title = (item.get("title") or "Unknown source").strip() or "Unknown source"
+            if not url or not content:
                 continue
+            raw_score = item.get("score")
+            score = float(raw_score) if isinstance(raw_score, (int, float)) else None
             out.append(
                 RetrievedChunk(
                     source="web",
                     title=title,
-                    content=snippet,
-                    link=link,
+                    content=content,
+                    link=url,
+                    score=score,
                 )
             )
-        logger.info("web_search_ok query_len=%d results=%d", len(query), len(out))
         return out
+
+    def search_sync(
+        self, query: str, num_results: int = DEFAULT_NUM_RESULTS
+    ) -> list[RetrievedChunk]:
+        if not query.strip() or self._sync is None:
+            return []
+        try:
+            resp = self._sync.search(
+                query=query,
+                max_results=self._clamp(num_results),
+                search_depth="basic",
+                timeout=_REQUEST_TIMEOUT,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "web_search_failed error_type=%s", type(exc).__name__
+            )
+            return []
+        chunks = self._parse(resp)
+        logger.info(
+            "web_search_ok provider=tavily query_len=%d results=%d",
+            len(query),
+            len(chunks),
+        )
+        return chunks
 
     async def search(
         self, query: str, num_results: int = DEFAULT_NUM_RESULTS
     ) -> list[RetrievedChunk]:
-        return await asyncio.to_thread(self.search_sync, query, num_results)
+        if not query.strip() or self._async is None:
+            return []
+        try:
+            resp = await self._async.search(
+                query=query,
+                max_results=self._clamp(num_results),
+                search_depth="basic",
+                timeout=_REQUEST_TIMEOUT,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "web_search_failed error_type=%s", type(exc).__name__
+            )
+            return []
+        chunks = self._parse(resp)
+        logger.info(
+            "web_search_ok provider=tavily query_len=%d results=%d",
+            len(query),
+            len(chunks),
+        )
+        return chunks
