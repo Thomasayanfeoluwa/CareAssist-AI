@@ -2,33 +2,28 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
 from typing import Protocol
 
 from pinecone import Pinecone
 
 from app.config import Settings
 from app.services.embedder import Embedder
+from app.services.types import RetrievedChunk
+from app.services.web_search import WebSearchService
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TOP_K = 3
+MIN_PDF_HITS = 2
 
-
-@dataclass(frozen=True)
-class RetrievedChunk:
-    """One piece of context retrieved for a query.
-
-    source is "pdf" or "web". For pdf chunks, title and page are set.
-    For web chunks, title is the site name and link is the URL.
-    """
-    source: str
-    title: str
-    content: str
-    page: int | None = None
-    link: str | None = None
-    score: float | None = None
-    chunk_id: str | None = None
+__all__ = [
+    "RetrievedChunk",
+    "Retriever",
+    "PineconeRetriever",
+    "RAGService",
+    "DEFAULT_TOP_K",
+    "MIN_PDF_HITS",
+]
 
 
 class Retriever(Protocol):
@@ -56,7 +51,6 @@ class PineconeRetriever:
         for match in res["matches"]:
             md = match["metadata"]
             page_raw = md.get("page")
-            # Pinecone returns numeric metadata as float; cast back to int
             page = int(page_raw) if isinstance(page_raw, (int, float)) else None
             out.append(
                 RetrievedChunk(
@@ -68,7 +62,6 @@ class PineconeRetriever:
                     chunk_id=match["id"],
                 )
             )
-
         top_score = out[0].score if out and out[0].score is not None else None
         logger.info(
             "rag_retrieved query_len=%d hits=%d top_score=%s",
@@ -80,22 +73,67 @@ class PineconeRetriever:
 
 
 class RAGService:
-    """PDF retrieval behind an async interface. Web fallback added in 4.5b."""
+    """Combined retrieval: PDF first, web fallback when PDF is weak."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._retriever: PineconeRetriever | None = (
+        self._pdf: PineconeRetriever | None = (
             PineconeRetriever(settings) if settings.PINECONE_API_KEY else None
+        )
+        self._web: WebSearchService | None = (
+            WebSearchService(settings)
+            if settings.GOOGLE_CSE_API_KEY and settings.GOOGLE_CSE_ID
+            else None
         )
 
     async def retrieve(
         self, query: str, top_k: int = DEFAULT_TOP_K
     ) -> list[RetrievedChunk]:
-        if self._retriever is None:
+        if not query.strip():
             return []
-        # Pinecone SDK + torch embed are blocking; run in a thread to keep
-        # the event loop free while other requests are in flight.
-        return await asyncio.to_thread(self._retriever.retrieve, query, top_k)
+
+        pdf_chunks: list[RetrievedChunk] = []
+        if self._pdf is not None:
+            try:
+                pdf_chunks = await asyncio.to_thread(
+                    self._pdf.retrieve, query, top_k
+                )
+            except Exception as exc:
+                logger.warning(
+                    "rag_pdf_retrieve_failed error_type=%s", type(exc).__name__
+                )
+
+        top_score = pdf_chunks[0].score if pdf_chunks else None
+        pdf_is_strong = (
+            len(pdf_chunks) >= MIN_PDF_HITS
+            and top_score is not None
+            and top_score >= self._settings.RAG_FALLBACK_SCORE_THRESHOLD
+        )
+        if pdf_is_strong:
+            logger.info(
+                "rag_pdf_strong hits=%d top_score=%.3f (no web fallback)",
+                len(pdf_chunks),
+                top_score,
+            )
+            return pdf_chunks
+
+        web_chunks: list[RetrievedChunk] = []
+        if self._web is not None:
+            try:
+                web_chunks = await self._web.search(
+                    query, num_results=self._settings.RAG_WEB_RESULTS
+                )
+            except Exception as exc:
+                logger.warning(
+                    "rag_web_search_failed error_type=%s", type(exc).__name__
+                )
+
+        logger.info(
+            "rag_combined pdf=%d web=%d (fallback fired)",
+            len(pdf_chunks),
+            len(web_chunks),
+        )
+        return pdf_chunks + web_chunks
 
     @staticmethod
     def assemble_context(chunks: list[RetrievedChunk]) -> str:

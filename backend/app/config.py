@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     REQUEST_MAX_BYTES: int = 16 * 1024
     RATE_LIMIT_PER_MINUTE: int = 30
     LLM_TEMPERATURE: float = 0.3
+    RAG_FALLBACK_SCORE_THRESHOLD: float = 0.4
+    RAG_WEB_RESULTS: int = 5
 
     # --- Session ---
     SESSION_TTL_SECONDS: int = 1800          # 30 min, matches cookie Max-Age
