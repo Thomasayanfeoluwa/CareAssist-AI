@@ -6,10 +6,15 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]  
+
 
 class Settings(BaseSettings):
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
