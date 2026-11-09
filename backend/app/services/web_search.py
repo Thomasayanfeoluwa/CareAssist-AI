@@ -62,7 +62,18 @@ class WebSearchService:
                 .execute()
             )
         except HttpError as exc:
-            logger.warning("web_search_http_error status=%s", exc.status_code)
+            # Google's error body explains *why* the request was rejected
+            # (bad key vs bad cx vs API-not-enabled vs referrer block).
+            try:
+                detail = exc.content.decode("utf-8", errors="replace")[:500]
+            except Exception:
+                detail = "<unreadable>"
+            logger.warning(
+                "web_search_http_error status=%s reason=%s body=%s",
+                exc.status_code,
+                exc.reason,
+                detail,
+            )
             return []
         except Exception as exc:
             logger.warning(
