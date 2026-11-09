@@ -7,7 +7,12 @@ from app.config import Settings
 
 @dataclass(frozen=True)
 class RetrievedChunk:
-    source: str  # "pdf" | "web"
+    """One piece of context retrieved for a query.
+
+    source is "pdf" or "web". For pdf chunks, title and page should be set.
+    For web chunks, title should be the site name and link the URL.
+    """
+    source: str
     title: str
     content: str
     page: int | None = None
@@ -15,7 +20,7 @@ class RetrievedChunk:
 
 
 class RAGService:
-    """Stage 4 wires Pinecone + Google CSE here."""
+    """Stage 4 wires Pinecone retrieval and Google CSE fallback here."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -23,7 +28,8 @@ class RAGService:
     async def retrieve(self, query: str) -> list[RetrievedChunk]:
         return []
 
-    def assemble_context(self, chunks: list[RetrievedChunk]) -> str:
+    @staticmethod
+    def assemble_context(chunks: list[RetrievedChunk]) -> str:
         parts: list[str] = []
         for c in chunks:
             if c.source == "pdf":

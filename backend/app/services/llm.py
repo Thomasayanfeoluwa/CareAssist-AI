@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 import logging
 import time
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from app.config import Settings
 logger = logging.getLogger(__name__)
 
 
+
 @dataclass(frozen=True)
 class LLMResult:
     content: str
@@ -21,6 +23,12 @@ class LLMResult:
 
 
 class LLMService:
+    """LiteLLM wrapper: Groq primary, OpenRouter fallback.
+    
+    Privacy contract: this module never logs user prompt or model output
+    content. Only model name, fallback flag, latency, and error *type*.
+    """
+
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         litellm.suppress_debug_info = True
@@ -36,7 +44,7 @@ class LLMService:
         try:
             resp = await self._call(self._settings.LITELLM_PRIMARY_MODEL, messages)
             model = self._settings.LITELLM_PRIMARY_MODEL
-        except Exception as exc:  # noqa: BLE001 — any failure triggers fallback
+        except Exception as exc:
             logger.warning(
                 "llm_primary_failed model=%s error_type=%s",
                 self._settings.LITELLM_PRIMARY_MODEL,
@@ -47,7 +55,6 @@ class LLMService:
             fallback = True
         latency_ms = int((time.perf_counter() - start) * 1000)
         content: str = resp.choices[0].message.content or ""
-        # NOTE: do not log message content — see privacy requirements.
         logger.info(
             "llm_call model=%s fallback=%s latency_ms=%d",
             model, fallback, latency_ms,
@@ -58,9 +65,8 @@ class LLMService:
             fallback_used=fallback,
             latency_ms=latency_ms,
         )
-
-    @staticmethod
-    async def _call(model: str, messages: list[dict[str, str]]) -> Any:
+    
+    async def _call(self, model: str, messages: list[dict[str, str]]) -> Any:
         return await litellm.acompletion(
-            model=model, messages=messages, temperature=0.3
+            model=model, messages=messages, temperature=self._settings.LLM_TEMPERATURE,
         )

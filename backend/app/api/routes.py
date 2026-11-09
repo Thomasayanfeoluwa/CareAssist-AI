@@ -1,4 +1,4 @@
-from __future__ import annotations
+# from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ class ChatRequest(BaseModel):
 
 
 class Source(BaseModel):
-    type: str
+    type: str            # "pdf" or "web"
     title: str
     page: int | None = None
     link: str | None = None
@@ -25,7 +25,7 @@ class Source(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     model: str
-    sources: list[Source] = []
+    sources: list[Source] = Field(default_factory=list)
     request_id: str
 
 

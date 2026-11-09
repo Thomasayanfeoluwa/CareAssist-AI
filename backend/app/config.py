@@ -15,7 +15,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Required, no defaults (fail-fast at startup if missing) ---
+    # --- Required, no defaults (fail-fast if missing) ---
     GROQ_API_KEY: Annotated[str, Field(min_length=1)]
     OPENROUTER_API_KEY: Annotated[str, Field(min_length=1)]
     PINECONE_API_KEY: Annotated[str, Field(min_length=1)]
@@ -24,12 +24,14 @@ class Settings(BaseSettings):
     SESSION_SECRET: Annotated[str, Field(min_length=32)]
     PILOT_AUTH_TOKEN: Annotated[str, Field(min_length=16)]
 
-    # --- Required, has defaults ---
+    # --- Required, with defaults ---
     PINECONE_INDEX: str = "carebot"
     LITELLM_PRIMARY_MODEL: str = "groq/llama-3.3-70b-versatile"
     LITELLM_FALLBACK_MODEL: str = "openrouter/meta-llama/llama-3.3-70b-instruct"
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = ""   # empty -> in-memory store (dev/tests); set in prod (Render)
     CORS_ORIGINS: str = "http://localhost:5173"
+    
 
     # --- Ops ---
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
@@ -37,6 +39,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     REQUEST_MAX_BYTES: int = 16 * 1024
     RATE_LIMIT_PER_MINUTE: int = 30
+    LLM_TEMPERATURE: float = 0.3
+
+    # --- Session ---
+    SESSION_TTL_SECONDS: int = 1800          # 30 min, matches cookie Max-Age
+    SESSION_COOKIE_SECURE: bool = False      # set True on Render (HTTPS only)
 
     @field_validator("CORS_ORIGINS")
     @classmethod
