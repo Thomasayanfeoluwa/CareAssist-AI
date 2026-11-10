@@ -20,6 +20,7 @@ class Source(BaseModel):
     title: str
     page: int | None = None
     link: str | None = None
+    snippet: str = ""  # first ~200 chars of the chunk, for the hover popover
 
 
 class ChatResponse(BaseModel):
@@ -89,7 +90,13 @@ async def chat(
 
     # 4. Structured sources for the frontend (hover popover)
     sources = [
-        Source(type=c.source, title=c.title, page=c.page, link=c.link)
+        Source(
+            type=c.source,
+            title=c.title,
+            page=c.page,
+            link=c.link,
+            snippet=(c.content[:200] + "…") if len(c.content) > 200 else c.content,
+        )
         for c in chunks
     ]
 
