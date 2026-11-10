@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # --- Required, with defaults ---
     PINECONE_INDEX: str = "carebot"
-    LITELLM_PRIMARY_MODEL: str = "groq/llama-3.3-70b-versatile"
+    LITELLM_PRIMARY_MODEL: str = "groq/openai/gpt-oss-120b"
     LITELLM_FALLBACK_MODEL: str = "openrouter/meta-llama/llama-3.3-70b-instruct"
     # REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_URL: str = ""   # empty -> in-memory store (dev/tests); set in prod (Render)
