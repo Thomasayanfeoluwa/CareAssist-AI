@@ -1,10 +1,5 @@
 services:
-  # --- Redis (shared session store + rate limiter across workers if scaled) ---
-  - type: redis
-    name: careassist-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []
+
 
   # --- Backend API ---
   - type: web
@@ -36,11 +31,6 @@ services:
         sync: false
       - key: CORS_ORIGINS
         value: https://careassist-web.onrender.com
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: careassist-redis
-          property: connectionString
       - key: LITELLM_PRIMARY_MODEL
         value: groq/openai/gpt-oss-120b
       - key: LITELLM_FALLBACK_MODEL
