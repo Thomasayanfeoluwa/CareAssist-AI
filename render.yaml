@@ -22,7 +22,7 @@ services:
       - key: PINECONE_API_KEY
         sync: false
       - key: PINECONE_INDEX
-        value: carebot
+        value: carebot-e5
       - key: TAVILY_API_KEY
         sync: false
       - key: SESSION_SECRET

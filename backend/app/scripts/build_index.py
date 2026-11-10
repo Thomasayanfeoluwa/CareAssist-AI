@@ -52,8 +52,8 @@ def main() -> int:
 
     logger.info("phase=embed")
     t2 = time.perf_counter()
-    embedder = Embedder()
-    vectors = embedder.embed([c.text for c in chunks])
+    embedder = Embedder(settings)
+    vectors = embedder.embed_documents([c.text for c in chunks])
     logger.info(
         "embedded count=%d dim=%d elapsed=%.1fs",
         len(vectors),
