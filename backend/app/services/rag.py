@@ -39,12 +39,12 @@ class PineconeRetriever:
         self._settings = settings
         self._pc = Pinecone(api_key=settings.PINECONE_API_KEY)
         self._index = self._pc.Index(settings.PINECONE_INDEX)
-        self._embedder = Embedder()
+        self._embedder = Embedder(settings)
 
     def retrieve(self, query: str, top_k: int = DEFAULT_TOP_K) -> list[RetrievedChunk]:
         if not query.strip():
             return []
-        vec = self._embedder.embed([query])[0]
+        vec = self._embedder.embed_query(query)
         res = self._index.query(vector=vec, top_k=top_k, include_metadata=True)
 
         out: list[RetrievedChunk] = []

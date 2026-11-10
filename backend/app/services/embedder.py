@@ -2,44 +2,58 @@ from __future__ import annotations
 
 import logging
 
-from sentence_transformers import SentenceTransformer
+from pinecone import Pinecone
+
+from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DIM = 384
+# Pinecone Inference model. 1024 dims, MTEB ~61, multilingual.
+EMBEDDING_MODEL = "multilingual-e5-large"
+EMBEDDING_DIM = 1024
+MAX_BATCH = 96  # Pinecone Inference limit: 96 inputs per request
 
 
 class Embedder:
-    """Wraps the sentence-transformers model.
+    """Embeddings via Pinecone Inference — no local model, zero server RAM cost.
 
-    The model is loaded once (lazy) and reused across calls. Loading takes
-    ~2-5 seconds and pins ~200 MB RAM; do not construct this per request.
+    Two entry points with intentionally distinct names because E5 models
+    require different ``input_type`` values for documents vs queries:
+    - embed_documents(texts) -> input_type="passage" (used at index time)
+    - embed_query(text)      -> input_type="query"   (used at retrieval time)
+    Mixing them up returns garbage retrieval results.
     """
 
-    def __init__(self, model_name: str = MODEL_NAME) -> None:
-        self._model_name = model_name
-        self._model: SentenceTransformer | None = None
+    def __init__(self, settings: Settings) -> None:
+        if not settings.PINECONE_API_KEY:
+            raise ValueError("PINECONE_API_KEY is required for Pinecone Inference")
+        self._pc = Pinecone(api_key=settings.PINECONE_API_KEY)
 
-    def _get_model(self) -> SentenceTransformer:
-        if self._model is None:
-            logger.info("embedder_loading model=%s", self._model_name)
-            self._model = SentenceTransformer(self._model_name, device="cpu")
-        return self._model
-
-    def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed a batch of texts -> list of 384-float vectors."""
+    def _embed(self, texts: list[str], input_type: str) -> list[list[float]]:
         if not texts:
             return []
-        model = self._get_model()
-        vectors = model.encode(
-            texts,
-            batch_size=64,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-        return [v.tolist() for v in vectors]
+        vectors: list[list[float]] = []
+        for i in range(0, len(texts), MAX_BATCH):
+            batch = texts[i : i + MAX_BATCH]
+            result = self._pc.inference.embed(
+                model=EMBEDDING_MODEL,
+                inputs=batch,
+                parameters={"input_type": input_type},
+            )
+            for e in result:
+                vectors.append(list(e.values))
+            logger.info(
+                "embedded_batch model=%s input_type=%s count=%d",
+                EMBEDDING_MODEL, input_type, len(batch),
+            )
+        return vectors
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._embed(texts, "passage")
+
+    def embed_query(self, text: str) -> list[float]:
+        vecs = self._embed([text], "query")
+        return vecs[0]
 
     @staticmethod
     def dimension() -> int:
