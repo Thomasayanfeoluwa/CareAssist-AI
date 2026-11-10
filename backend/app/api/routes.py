@@ -35,6 +35,13 @@ async def healthz(settings: SettingsDep) -> dict[str, str]:
     return {"status": "ok", "version": settings.APP_VERSION}
 
 
+# --- TEMP DEBUG: remove before commit ---
+@router.get("/_debug/token")
+async def debug_token(settings: SettingsDep) -> dict:
+    tok = settings.PILOT_AUTH_TOKEN
+    return {"len": len(tok), "last3_bytes": [ord(c) for c in tok[-3:]], "repr": repr(tok)}
+
+
 @router.post(
     "/api/chat",
     response_model=ChatResponse,
