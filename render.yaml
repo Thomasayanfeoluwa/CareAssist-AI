@@ -1,0 +1,86 @@
+services:
+  # --- Redis (shared session store + rate limiter across workers if scaled) ---
+  - type: redis
+    name: careassist-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
+  # --- Backend API ---
+  - type: web
+    name: careassist-api
+    runtime: python
+    plan: free
+    region: virginia          # us-east — closest to Pinecone us-east-1, Groq, Tavily
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /healthz
+    autoDeploy: false         # we deploy from GitHub Actions after tests pass
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX
+        value: carebot
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PILOT_AUTH_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://careassist-web.onrender.com
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: careassist-redis
+          property: connectionString
+      - key: LITELLM_PRIMARY_MODEL
+        value: groq/openai/gpt-oss-120b
+      - key: LITELLM_FALLBACK_MODEL
+        value: openrouter/meta-llama/llama-3.3-70b-instruct
+      - key: LLM_TEMPERATURE
+        value: "0.3"
+      - key: LLM_MOCK
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: SESSION_COOKIE_SECURE
+        value: "true"           # HTTPS-only cookie on Render
+      - key: SESSION_TTL_SECONDS
+        value: "1800"
+      - key: RAG_FALLBACK_SCORE_THRESHOLD
+        value: "0.4"
+      - key: RAG_WEB_RESULTS
+        value: "5"
+      - key: REQUEST_MAX_BYTES
+        value: "16384"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "30"
+
+  # --- Frontend (static site) ---
+  - type: web
+    name: careassist-web
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: false         # deploy from GitHub Actions after tests pass
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://careassist-api.onrender.com
+      - key: VITE_PILOT_AUTH_TOKEN
+        sync: false           # set in Render dashboard, not in git
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
