@@ -47,8 +47,6 @@ services:
         value: "true"           # HTTPS-only cookie on Render
       - key: SESSION_TTL_SECONDS
         value: "1800"
-      - key: RAG_FALLBACK_SCORE_THRESHOLD
-        value: "0.4"
       - key: RAG_WEB_RESULTS
         value: "5"
       - key: REQUEST_MAX_BYTES
