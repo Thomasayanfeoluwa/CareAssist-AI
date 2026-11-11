@@ -1,4 +1,4 @@
-# CareAssist AI — Operations Runbook
+# CareAssist — Operations Runbook
 
 **Audience:** whoever maintains or operates this app. Six
 months from now, with no memory of how any of this works.
@@ -573,6 +573,6 @@ Each run uses real Groq / Pinecone / Tavily credits. 5 cases = ~30 seconds and ~
 
 ## Contact
 
-**Operator:** Thomas Ayanfeoluwa
+**Operator:** Idowu Thomas
 **Email:** ayanfeoluwadegoke@gmail.com
 **Privacy notice:** [docs/privacy.md](privacy.md)

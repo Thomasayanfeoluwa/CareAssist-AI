@@ -1,9 +1,9 @@
-# CareAssist AI — Privacy Notice
+# CareAssist — Privacy Notice
 
 **Last updated:** 2026-11-10
 **Status:** Closed pilot. Educational use only. Not a medical device.
 
-This document explains what data CareAssist AI processes, where it goes, how long it is kept, what we can and cannot do about removal, and how to reach us with a privacy question.
+This document explains what data CareAssist processes, where it goes, how long it is kept, what we can and cannot do about removal, and how to reach us with a privacy question.
 
 ---
 
@@ -275,7 +275,7 @@ Any change to this document will be committed to the public repository at `githu
 
 ## 10. Contact
 
-**Operator:** Thomas Ayanfeoluwa (pilot operator)
+**Operator:** Idowu Thomas (pilot operator)
 **Email:** **ayanfeoluwadegoke@gmail.com**
 **Repository:** https://github.com/Thomasayanfeoluwa/HealthAssistant-AI
 **Live app:** https://careassist-web.onrender.com

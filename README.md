@@ -1,4 +1,4 @@
-# CareAssist AI
+# CareAssist
 
 An educational health-information assistant that answers health questions from a 637-page medical textbook, cites exact page numbers, and falls back to web search when the book does not cover a topic.
 
@@ -171,7 +171,7 @@ Full deployment, rollback, and troubleshooting steps live in [docs/runbook.md](d
 
 This is a closed pilot, not an open-source project. Do not open PRs without contacting the operator first.
 
-If you are the operator (hi, future Thomas), see the [runbook](docs/runbook.md) for how to make changes safely.
+For operational guidance and safe changes, see the [runbook](docs/runbook.md).
 
 ---
 
