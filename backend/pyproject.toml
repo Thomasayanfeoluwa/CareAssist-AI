@@ -1,7 +1,7 @@
 [project]
 name = "careassist-api"
 version = "0.1.0"
-description = "CareAssist AI backend"
+description = "CareAssist backend"
 requires-python = ">=3.11,<3.12"
 
 # --- ruff ---

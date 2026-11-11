@@ -1,4 +1,4 @@
-# CareAssist AI — Evaluation Report
+# CareAssist — Evaluation Report
 
 Generated: 2026-11-11T00:20:42.508877+00:00
 

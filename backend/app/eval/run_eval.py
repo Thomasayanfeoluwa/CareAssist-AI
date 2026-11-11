@@ -118,7 +118,7 @@ def _render_markdown(results: list[dict]) -> str:
     total = len(results)
     total_elapsed = sum(r["elapsed_s"] for r in results)
     lines: list[str] = []
-    lines.append("# CareAssist AI — Evaluation Report")
+    lines.append("# CareAssist — Evaluation Report")
     lines.append("")
     lines.append(f"Generated: {datetime.now(timezone.utc).isoformat()}")
     lines.append("")
