@@ -37,8 +37,8 @@ export function MessageList({
             CareAssist
           </h2>
           <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
-            Ask a health question. I cite exact pages from a medical textbook
-            and search the web when the book does not cover a topic.
+            Ask a health question. CareAssist cites exact pages from a medical
+            textbook and searches the web when the book does not cover a topic.
           </p>
           <p className="mt-4 text-xs text-slate-500">
             Educational information only · Not for diagnosis or treatment
