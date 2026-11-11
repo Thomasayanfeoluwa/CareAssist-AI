@@ -9,5 +9,25 @@ body,
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  background-color: #f7f5f1;
+  color: #1c1917;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* Serif stack for headings — bypasses Tailwind's fontFamily config which
+   does not reliably load on Render's build environment */
+h1,
+h2,
+h3,
+.font-serif {
+  font-family: "Source Serif 4", "Source Serif Pro", Georgia, serif;
+}
+
+/* Slightly warmer prose for assistant replies */
+.prose-slate {
+  --tw-prose-body: #44403c;
+  --tw-prose-headings: #1c1917;
+  --tw-prose-links: #0f766e;
 }
