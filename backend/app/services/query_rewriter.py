@@ -146,15 +146,7 @@ async def rewrite_query(
             return RewriteResult(query=concatenated, was_rewritten=False)
 
         if anchor_set:
-            _MEDICAL_TERMS = frozenset({
-                "aspirin", "ibuprofen", "acetaminophen", "paracetamol",
-                "advil", "tylenol", "warfarin", "insulin", "metformin",
-                "hypertension", "diabetes", "malaria", "cancer", "asthma",
-                "pneumonia", "arthritis", "stroke", "angina", "infection",
-                "vaccine", "vaccination", "chest", "fever",
-            })
-            medical = anchor_set & _MEDICAL_TERMS
-            primary = max(medical, key=len) if medical else max(anchor_set, key=len)
+            primary = max(anchor_set, key=len)
             if not rewritten.lower().startswith(primary.lower()):
                 rewritten = f"{primary}: {rewritten}"
                 logger.info(
