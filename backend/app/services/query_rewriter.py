@@ -87,7 +87,6 @@ def _find_topic_anchor(history: list[HistoryEntry]) -> str:
     for c in reversed(candidates):
         if not _is_followup(c):
             return c
-    # Fallback: the most recent user message, whatever it is
     return candidates[-1]
 
 
@@ -103,6 +102,7 @@ async def rewrite_query(
     1. Anchor on the previous USER message, not the assistant reply.
     2. Reject rewrites that drop the anchor's medical topic.
     3. Fall back to "{anchor} {followup}" concatenation when the LLM drifts.
+    4. Prepend the anchor's primary term so Pinecone weights it first.
     """
     trimmed = user_message.strip()
     if not history or not trimmed:
@@ -115,7 +115,6 @@ async def rewrite_query(
     if not anchor:
         return RewriteResult(query=trimmed, was_rewritten=False)
 
-    # Concatenation fallback preserves the topic by construction
     concatenated = f"{anchor} {trimmed}"
 
     recent = history[-max_history:]
@@ -136,17 +135,24 @@ async def rewrite_query(
         if not rewritten or len(rewritten) > 500:
             return RewriteResult(query=concatenated, was_rewritten=False)
 
-        # Verify the rewrite preserves the anchor's topic
         anchor_set = _anchor_words(anchor)
         rewrite_set = {w.lower() for w in _tokenize(rewritten)}
+
         if anchor_set and not (anchor_set & rewrite_set):
             logger.warning(
-                "query_rewrite_lost_topic anchor_terms=%d rewritten_len=%d "
-                "(using concatenation fallback)",
-                len(anchor_set),
-                len(rewritten),
+                "query_rewrite_lost_topic anchor_terms=%d rewritten_len=%d",
+                len(anchor_set), len(rewritten),
             )
             return RewriteResult(query=concatenated, was_rewritten=False)
+
+        if anchor_set:
+            primary = max(anchor_set, key=len)
+            if not rewritten.lower().startswith(primary.lower()):
+                rewritten = f"{primary}: {rewritten}"
+                logger.info(
+                    "query_rewrite_anchored primary_len=%d rewritten_len=%d",
+                    len(primary), len(rewritten),
+                )
 
         logger.info(
             "query_rewritten original_len=%d rewritten_len=%d",
