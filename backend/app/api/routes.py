@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
@@ -7,6 +9,10 @@ from app.ratelimit import limiter
 from app.services.llm import LLMService
 from app.services.rag import RAGService, RetrievedChunk
 from app.services.session_store import SessionStore
+from app.services.query_rewriter import rewrite_query
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter()
 
@@ -125,7 +131,18 @@ async def chat(
         # chunks stays [] — no sources for a greeting
     else:
         # Normal RAG path
-        chunks = await rag.retrieve(body.message)
+        # Step 1: rewrite the query if this is a follow-up (uses history)
+        rewrite = await rewrite_query(
+            body.message, history, LLMService(settings)
+        )
+        logger.info(
+            "chat_rewrite original_len=%d final_len=%d rewritten=%s",
+            len(body.message),
+            len(rewrite.query),
+            rewrite.was_rewritten,
+        )
+
+        chunks = await rag.retrieve(rewrite.query)
         chunks = _filter_chunks_by_score(chunks)
         context_str = rag.assemble_context(chunks)
 
