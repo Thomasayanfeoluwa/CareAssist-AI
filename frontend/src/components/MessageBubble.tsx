@@ -16,13 +16,8 @@ function stripMarkdown(md: string): string {
     .trim()
 }
 
-function useSpeaking(): {
-  speaking: boolean
-  speak: (text: string) => void
-  stop: () => void
-} {
+function useSpeaking(): { speaking: boolean; speak: (t: string) => void; stop: () => void } {
   const [speaking, setSpeaking] = useState(false)
-
   useEffect(() => {
     const onEnd = () => setSpeaking(false)
     window.speechSynthesis.addEventListener('end', onEnd)
@@ -31,7 +26,6 @@ function useSpeaking(): {
       window.speechSynthesis.cancel()
     }
   }, [])
-
   const speak = (text: string) => {
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(stripMarkdown(text))
@@ -42,12 +36,10 @@ function useSpeaking(): {
     setSpeaking(true)
     window.speechSynthesis.speak(u)
   }
-
   const stop = () => {
     window.speechSynthesis.cancel()
     setSpeaking(false)
   }
-
   return { speaking, speak, stop }
 }
 
@@ -57,7 +49,7 @@ export function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2 text-white">
+        <div className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-blue-600 px-4 py-2.5 text-[15px] leading-relaxed text-white shadow-sm">
           {message.content}
         </div>
       </div>
@@ -67,9 +59,11 @@ export function MessageBubble({ message }: { message: Message }) {
   if (message.error) {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[80%] rounded-2xl rounded-bl-sm border border-red-200 bg-red-50 px-4 py-2 text-red-700">
-          <div className="text-xs font-semibold uppercase">Error</div>
-          <div className="mt-1 whitespace-pre-wrap break-words">{message.error}</div>
+        <div className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-amber-900">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+            Something went wrong
+          </div>
+          <div className="mt-1 whitespace-pre-wrap break-words text-sm">{message.error}</div>
         </div>
       </div>
     )
@@ -77,21 +71,18 @@ export function MessageBubble({ message }: { message: Message }) {
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[80%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-2 text-slate-900">
+      <div className="max-w-[80%] rounded-2xl rounded-bl-md border border-slate-200 bg-white px-5 py-4 text-slate-900 shadow-sm">
         <div className="prose prose-sm prose-slate max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeSanitize]}
-          >
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
             {message.content}
           </ReactMarkdown>
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
             onClick={() => (speaking ? stop() : speak(message.content))}
-            className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             aria-label={speaking ? 'Stop reading the answer' : 'Read this answer aloud'}
             aria-pressed={speaking}
           >
@@ -100,8 +91,10 @@ export function MessageBubble({ message }: { message: Message }) {
         </div>
 
         {message.sources.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-100 pt-2">
-            <span className="mr-1 text-xs text-slate-500">Sources:</span>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+            <span className="mr-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+              Sources
+            </span>
             {message.sources.map((s, i) => (
               <SourceChip
                 key={`${i}-${s.type}-${s.title}-${s.page ?? ''}-${s.link ?? ''}`}
