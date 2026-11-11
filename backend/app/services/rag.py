@@ -11,6 +11,11 @@ from app.services.embedder import Embedder
 from app.services.types import RetrievedChunk
 from app.services.web_search import WebSearchService
 
+from app.services.relevance import (
+    JUDGE_ANSWER_THRESHOLD,
+    score_chunks_for_question,
+)
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TOP_K = 3
@@ -118,6 +123,14 @@ class RAGService:
             self._web = None
         return self._web
 
+    def _llm_for_judge(self) -> "LLMService":
+    # Lazy + cached. Constructing a new LLMService per request is
+    # wasteful; the constructor sets module-level litellm flags.
+        if not hasattr(self, "_judge_llm"):
+            from app.services.llm import LLMService
+            self._judge_llm = LLMService(self._settings)
+        return self._judge_llm
+
     async def retrieve(
         self, query: str, top_k: int = DEFAULT_TOP_K
     ) -> list[RetrievedChunk]:
@@ -135,16 +148,25 @@ class RAGService:
                 )
 
         top_score = pdf_chunks[0].score if pdf_chunks else None
-        pdf_is_strong = (
-            len(pdf_chunks) >= MIN_PDF_HITS
-            and top_score is not None
-            and top_score >= self._settings.RAG_FALLBACK_SCORE_THRESHOLD
-        )
-        if pdf_is_strong:
+
+        # Numeric relevance judge (1-5) with threshold.
+        # Fires Tavily when the judge says the chunks do not clearly answer.
+        pdf_answers = False
+        if len(pdf_chunks) >= MIN_PDF_HITS:
+            judge_score = await score_chunks_for_question(
+                query, pdf_chunks, self._llm_for_judge()
+            )
+            pdf_answers = judge_score >= JUDGE_ANSWER_THRESHOLD
             logger.info(
-                "rag_pdf_strong hits=%d top_score=%.3f (no web fallback)",
+                "rag_relevance judge_score=%d threshold=%d answers=%s",
+                judge_score, JUDGE_ANSWER_THRESHOLD, pdf_answers,
+            )
+
+        if pdf_answers:
+            logger.info(
+                "rag_pdf_answers hits=%d top_score=%.3f (no web fallback)",
                 len(pdf_chunks),
-                top_score,
+                top_score if top_score is not None else -1.0,
             )
             return pdf_chunks
 
