@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # If the top PDF score is at or above this, trust the chunks without asking
 # an LLM. Saves the Groq call for the clearly confident cases.
-CONFIDENT_THRESHOLD = 0.95
+CONFIDENT_THRESHOLD = 0.75
 
 # Judge score at or above this means "the chunks answer the question".
 # Below this, fire the web fallback.
