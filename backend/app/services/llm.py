@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-
+import asyncio
 import logging
 import time
 from dataclasses import dataclass
@@ -13,7 +13,6 @@ from app.config import Settings
 logger = logging.getLogger(__name__)
 
 
-
 @dataclass(frozen=True)
 class LLMResult:
     content: str
@@ -24,9 +23,12 @@ class LLMResult:
 
 class LLMService:
     """LiteLLM wrapper: Groq primary, OpenRouter fallback.
-    
-    Privacy contract: this module never logs user prompt or model output
-    content. Only model name, fallback flag, latency, and error *type*.
+
+    Retries primary once after a short backoff before falling back, so
+    transient rate limits do not silently downgrade to the weaker model.
+
+    Privacy contract: never logs user prompt or model output content.
+    Only model name, fallback flag, latency, and error *type*.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -41,6 +43,7 @@ class LLMService:
         ]
         start = time.perf_counter()
         fallback = False
+
         try:
             resp = await self._call(self._settings.LITELLM_PRIMARY_MODEL, messages)
             model = self._settings.LITELLM_PRIMARY_MODEL
@@ -50,9 +53,22 @@ class LLMService:
                 self._settings.LITELLM_PRIMARY_MODEL,
                 type(exc).__name__,
             )
-            resp = await self._call(self._settings.LITELLM_FALLBACK_MODEL, messages)
-            model = self._settings.LITELLM_FALLBACK_MODEL
-            fallback = True
+            # Rate limits are per-minute. Wait 2s and retry the primary once
+            # before downgrading to the weaker fallback model.
+            try:
+                await asyncio.sleep(2)
+                resp = await self._call(self._settings.LITELLM_PRIMARY_MODEL, messages)
+                model = self._settings.LITELLM_PRIMARY_MODEL
+                logger.info("llm_primary_retry_succeeded")
+            except Exception as exc2:
+                logger.warning(
+                    "llm_primary_retry_failed error_type=%s",
+                    type(exc2).__name__,
+                )
+                resp = await self._call(self._settings.LITELLM_FALLBACK_MODEL, messages)
+                model = self._settings.LITELLM_FALLBACK_MODEL
+                fallback = True
+
         latency_ms = int((time.perf_counter() - start) * 1000)
         content: str = resp.choices[0].message.content or ""
         logger.info(
@@ -65,8 +81,10 @@ class LLMService:
             fallback_used=fallback,
             latency_ms=latency_ms,
         )
-    
+
     async def _call(self, model: str, messages: list[dict[str, str]]) -> Any:
         return await litellm.acompletion(
-            model=model, messages=messages, temperature=self._settings.LLM_TEMPERATURE,
+            model=model,
+            messages=messages,
+            temperature=self._settings.LLM_TEMPERATURE,
         )
