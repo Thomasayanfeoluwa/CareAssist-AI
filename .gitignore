@@ -35,3 +35,4 @@ Thumbs.db
 
 # --- Logs ---
 *.logReomoved Medical_book.pdf
+Data/*.pdf
