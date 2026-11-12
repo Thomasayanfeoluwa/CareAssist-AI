@@ -18,7 +18,7 @@ CONFIDENT_THRESHOLD = 0.75
 #   3 = passages are topically relevant but do not answer
 #   2 = passages are adjacent but irrelevant
 #   1 = passages are unrelated
-JUDGE_ANSWER_THRESHOLD = 4
+JUDGE_ANSWER_THRESHOLD = 5
 
 # Max length of each chunk to include in the judge prompt.
 CHUNK_PREVIEW_LEN = 350
