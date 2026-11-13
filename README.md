@@ -61,7 +61,7 @@ Under the hood, each request runs through four steps:
 | Retrieval      | Pinecone (1024-dim, cosine)                 | Serverless vector DB with hosted embeddings      |
 | Embeddings     | Pinecone Inference `multilingual-e5-large`  | No local model → fits in 512 MB RAM              |
 | LLM primary    | Groq `openai/gpt-oss-120b`                  | Fast, cheap, good medical Q&A                    |
-| LLM fallback   | OpenRouter `llama-3.3-70b-instruct`         | Different provider, different model family       |
+| LLM fallback   | OpenRouter `openai/gpt-4o-mini`             | Different provider, different model family       |
 | Web fallback   | Tavily                                      | LLM-optimized search, returns clean snippets     |
 | Session memory | In-process (single worker)                  | 30-min TTL, no external dependency               |
 | Hosting        | Render (free tier)                          | Backend + frontend + free HTTPS                  |
@@ -84,7 +84,7 @@ Under the hood, each request runs through four steps:
 
 ```powershell
 # Clone
-git clone https://github.com/Thomasayanfeoluwa/HealthAssistant-AI.git
+git clone https://github.com/Thomasayanfeoluwa/CareAssist-AI.git
 cd HealthAssistant-AI
 
 # Python env
