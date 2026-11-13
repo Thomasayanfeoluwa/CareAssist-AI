@@ -58,7 +58,7 @@ jobs:
           path: docs/eval/latest.md
 
   deploy:
-    # Deploy only after backend, frontend, and eval all pass on main.
+    # Deploy the backend, frontend, and eval when they all pass on main.
     needs: [backend, frontend, eval]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
