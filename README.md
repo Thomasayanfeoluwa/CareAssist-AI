@@ -15,18 +15,40 @@ You ask: *"What are the side effects of aspirin?"*
 
 It answers:
 
-> Aspirin can cause a range of side effects... The most common ones include stomachache or heartburn, loss of appetite, and small amounts of blood in the stool **[PDF: Medical book, page 393]**.
+> Aspirin can cause a range of side effects... The most common ones include
+> stomachache or heartburn, loss of appetite, and small amounts of blood in
+> the stool **[PDF: Medical book, page 393]**.
 >
-> **Reminder:** Always consult a qualified health professional for your specific situation.
+> **Reminder:** Always consult a qualified health professional for your
+> specific situation.
 
-Plus three clickable source chips (`PDF p.393`, `PDF p.393`, `PDF p.189`) that open a hoverable preview of the exact passage the model cited.
+Plus three clickable source chips (`PDF p.393`, `PDF p.393`, `PDF p.189`)
+that open a hoverable preview of the exact passage the model cited.
 
-Under the hood:
+Under the hood, each request runs through four steps:
 
-1. **Retrieve** — embed the question with Pinecone Inference (`multilingual-e5-large`, 1024 dims), search a 3,424-chunk index built from `Data/Medical_book.pdf`, take the top 3 chunks by cosine similarity
-2. **Fallback** — if the best score is below 0.4, search the web via Tavily for current information
-3. **Generate** — call Groq's `openai/gpt-oss-120b`, falling back to OpenRouter's `llama-3.3-70b-instruct` on failure
-4. **Cite** — every PDF chunk carries its page number, so citations are grounded in what was actually retrieved
+1. **Rewrite** — if the question is a short follow-up (e.g. "what about
+   children?"), a lightweight LLM rewrites it into a standalone query that
+   preserves the original topic. Anchors on the previous *user* message, not
+   the assistant's reply, and falls back to string concatenation if the
+   rewrite drifts.
+2. **Retrieve** — embed the query with Pinecone Inference
+   (`multilingual-e5-large`, 1024 dims) and search a 3,424-chunk index built
+   from `Data/Medical_book.pdf` for the top 3 chunks by cosine similarity.
+3. **Judge relevance** — an LLM reviews the retrieved chunks and scores how
+   well they answer the question on a 1–5 scale. Only a score of **5**
+   ("passages directly answer with the specific facts requested") is treated
+   as sufficient. Any score of 4 or below fires the web fallback, so the app
+   never serves a confident answer from topically-near-but-wrong passages.
+4. **Web fallback (Tavily)** — if the PDF chunks do not fully answer the
+   question, search the web for current information. Used for topics the
+   textbook does not cover (recent guidelines, vaccine schedules, drug
+   comparisons).
+5. **Generate** — call Groq's `openai/gpt-oss-120b`. On failure the service
+   retries up to 3 times, honouring Groq's `retry-after` hint before each
+   retry. If all retries fail, fall back to OpenRouter's
+   `openai/gpt-4o-mini`.
+6. **Cite** — every PDF chunk carries its page number, so citations are grounded in what was actually retrieved
 
 ---
 
