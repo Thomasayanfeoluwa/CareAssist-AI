@@ -22,7 +22,7 @@ It answers:
 > **Reminder:** Always consult a qualified health professional for your
 > specific situation.
 
-Plus three clickable source chips (`PDF p.393`, `PDF p.393`, `PDF p.189`)
+Plus clickable source chips (`PDF p.393`, `PDF p.393`, `PDF p.189`)
 that open a hoverable preview of the exact passage the model cited.
 
 Under the hood, each request runs through four steps:
