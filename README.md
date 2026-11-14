@@ -25,7 +25,7 @@ It answers:
 Plus clickable source chips (`PDF p.393`, `PDF p.393`, `PDF p.189`)
 that open a hoverable preview of the exact passage the model cited.
 
-Under the hood, each request runs through four steps:
+Under the hood, each request runs through six steps:
 
 1. **Rewrite** — if the question is a short follow-up (e.g. "what about
    children?"), a lightweight LLM rewrites it into a standalone query that
@@ -33,22 +33,22 @@ Under the hood, each request runs through four steps:
    the assistant's reply, and falls back to string concatenation if the
    rewrite drifts.
 2. **Retrieve** — embed the query with Pinecone Inference
-   (`multilingual-e5-large`, 1024 dims) and search a 3,424-chunk index built
-   from `Data/Medical_book.pdf` for the top 3 chunks by cosine similarity.
-3. **Judge relevance** — an LLM reviews the retrieved chunks and scores how
-   well they answer the question on a 1–5 scale. Only a score of **5**
-   ("passages directly answer with the specific facts requested") is treated
-   as sufficient. Any score of 4 or below fires the web fallback, so the app
-   never serves a confident answer from topically-near-but-wrong passages.
+   (`multilingual-e5-large`, 1024 dims) and search an index built
+   from `Data/Medical_book.pdf` (`carebot-e5`) for the top 3 chunks by cosine similarity.
+3. **Judge relevance** — an LLM reviews the retrieved chunks using a mechanical anchor check
+   (verifying specific guidelines, years, agencies, doses, or schedules).
+   Scores are evaluated on a 1–5 scale: scores of **4 or 5** ("passages directly answer with
+   the specific facts requested") are accepted as sufficient. Scores of **3 or below**
+   (or missing anchors) fire the web fallback, ensuring the assistant never serves a false
+   answer from topically-adjacent but incomplete book passages.
 4. **Web fallback (Tavily)** — if the PDF chunks do not fully answer the
-   question, search the web for current information. Used for topics the
+   question, search the web for current, authoritative medical information. Used for topics the
    textbook does not cover (recent guidelines, vaccine schedules, drug
    comparisons).
 5. **Generate** — call Groq's `openai/gpt-oss-120b`. On failure the service
    retries up to 3 times, honouring Groq's `retry-after` hint before each
-   retry. If all retries fail, fall back to OpenRouter's
-   `openai/gpt-4o-mini`.
-6. **Cite** — every PDF chunk carries its page number, so citations are grounded in what was actually retrieved
+   retry. If all retries fail, fall back to OpenRouter (`meta-llama/llama-3.3-70b-instruct` or `openai/gpt-4o-mini`).
+6. **Cite** — citations are strictly grounded in what was retrieved: exact page numbers for PDF passages (`[PDF: Medical book, page X]`) and source URLs when web fallback is utilized.
 
 ---
 
@@ -58,12 +58,13 @@ Under the hood, each request runs through four steps:
 |----------------|---------------------------------------------|--------------------------------------------------|
 | Backend        | FastAPI + Uvicorn                           | Typed request/response, async, OpenAPI           |
 | Frontend       | React 18 + TypeScript + Vite + Tailwind     | Typed, fast builds, no framework bloat           |
-| Retrieval      | Pinecone (1024-dim, cosine)                 | Serverless vector DB with hosted embeddings      |
+| Retrieval      | Pinecone (1024-dim, cosine, `carebot-e5`)   | Serverless vector DB with hosted embeddings      |
 | Embeddings     | Pinecone Inference `multilingual-e5-large`  | No local model → fits in 512 MB RAM              |
 | LLM primary    | Groq `openai/gpt-oss-120b`                  | Fast, cheap, good medical Q&A                    |
-| LLM fallback   | OpenRouter `openai/gpt-4o-mini`             | Different provider, different model family       |
+| LLM fallback   | OpenRouter `llama-3.3-70b-instruct` / `gpt-4o-mini` | Different provider & model family for failover resilience |
 | Web fallback   | Tavily                                      | LLM-optimized search, returns clean snippets     |
-| Session memory | In-process (single worker)                  | 30-min TTL, no external dependency               |
+| Session memory | In-memory / Redis (`RedisSessionStore`)     | 30-min TTL; in-memory for dev, Redis for multi-worker prod |
+| CI/CD          | GitHub Actions                              | Ruff, MyPy strict, Pytest, Vite build, Eval gate & Render deploy hook |
 | Hosting        | Render (free tier)                          | Backend + frontend + free HTTPS                  |
 
 ---
@@ -85,7 +86,7 @@ Under the hood, each request runs through four steps:
 ```powershell
 # Clone
 git clone https://github.com/Thomasayanfeoluwa/CareAssist-AI.git
-cd HealthAssistant-AI
+cd CareAssist-AI
 
 # Python env
 uv venv --python 3.11 --seed .venv
@@ -127,33 +128,36 @@ Open http://localhost:5173.
 
 The `--reload` flag is required during development. Without it, `.py` changes do not take effect until you restart.
 
-### Test
+### Test & Quality Checks
 
 ```powershell
+# Backend lint, typecheck, and unit tests
 cd backend
-python -m pytest tests/ -q           # 41 tests, ~15s, no API calls
-python -m app.eval.run_eval          # 5-case eval, ~30s, uses real API credits
+ruff check app tests                 # Linting and style rules
+mypy app                             # Strict type checking across backend
+python -m pytest tests/ -q           # 41 tests, ~13s, no API calls
+
+# Automated evaluation (requires live API keys, 30s pacing, ~2.5 min)
+python -m app.eval.run_eval          # 5-case RAG eval (retrieval, citation grounding, dosage check, LLM fact judge)
+
+# Frontend typecheck & build
+cd ../frontend
+npm run typecheck                    # TypeScript compiler verification
+npm run build                        # Production bundle build
 ```
 
 ---
 
-## Deploy
+## Deploy & CI/CD Pipeline
 
-Deploys are handled by Render's Blueprint system reading `render.yaml`:
+Continuous Integration and Deployment is handled via **GitHub Actions** (`.github/workflows/ci.yml`) and **Render**:
 
-- `careassist-api` — FastAPI backend (Python 3.11)
-- `careassist-web` — React static site (built with `npm ci && npm run build`)
-
-Every `git push origin main` triggers a rebuild + deploy of both services.
-
-### First deploy
-
-1. Fork or clone this repo to your own GitHub
-2. In Render: **New + → Blueprint →** select the repo
-3. Fill in the `sync: false` secrets in the dashboard  
-   (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `PINECONE_API_KEY`, `TAVILY_API_KEY`, `PILOT_AUTH_TOKEN`)
-4. After the deploy is live, run the index build once  
-   (see [docs/runbook.md](docs/runbook.md) §6)
+1. **Backend CI**: Runs on all pushes and pull requests (`Python 3.11`). Enforces `ruff check`, `mypy app` (strict mode), and `pytest -q` (41 unit tests).
+2. **Frontend CI**: Runs on all pushes and pull requests (`Node 20`). Enforces `npm run typecheck` and `npm run build`.
+3. **Automated Evaluation Gate**: On push to `main`, executes the 5-case evaluation suite (`python -m app.eval.run_eval --limit 5`) with `LLM_TEMPERATURE=0.0` for deterministic scoring. Generates and uploads the eval report artifact (`docs/eval/latest.md`).
+4. **Deploy Gate**: Once `backend`, `frontend`, and `eval` jobs all pass, GitHub Actions triggers the Render deploy webhook (`RENDER_DEPLOY_HOOK_URL`) to deploy:
+   - `careassist-api` — FastAPI backend (Python 3.11, Virginia region)
+   - `careassist-web` — React static site
 
 Full deployment, rollback, and troubleshooting steps live in [docs/runbook.md](docs/runbook.md).
 
@@ -181,11 +185,10 @@ Full deployment, rollback, and troubleshooting steps live in [docs/runbook.md](d
 
 | Limitation                                                  | Workaround / Future                                             |
 |-------------------------------------------------------------|-----------------------------------------------------------------|
-| Single worker, in-memory sessions                           | Add Redis + `--workers 2` when upgrading                        |
+| In-memory sessions by default in dev                        | `RedisSessionStore` is implemented; set `REDIS_URL` + `--workers 2` when upgrading |
 | Cold start after 15 min idle (~30-50s)                      | Upgrade to Render Starter ($7/mo)                               |
-| Eval covers 5 cases with clinically-unreviewed page numbers | Clinical review is a Stage 9 pre-pilot deliverable              |
-| No CI/CD (GitHub Actions billing-locked)                    | Render auto-deploy on git push; wire actions when billing fixed |
-| 512 MB RAM ceiling                                          | Comfortable at current design; no headroom for local models     |
+| Eval covers 5 automated benchmark cases                     | Pages verified in `dataset.jsonl`; ongoing clinical review documented in `docs/eval/` |
+| 512 MB RAM ceiling on free tier                             | Cloud embeddings via Pinecone Inference preserve low RAM footprint |
 
 ---
 
