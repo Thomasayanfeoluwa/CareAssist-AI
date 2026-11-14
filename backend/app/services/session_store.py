@@ -84,7 +84,7 @@ class RedisSessionStore:
         # that do not install `redis` (e.g. minimal test containers).
         import redis.asyncio as redis_asyncio
         self._ttl = settings.SESSION_TTL_SECONDS
-        self._client = redis_asyncio.from_url(
+        self._client = redis_asyncio.from_url(  # type: ignore[no-untyped-call]
             settings.REDIS_URL, decode_responses=True
         )
 
