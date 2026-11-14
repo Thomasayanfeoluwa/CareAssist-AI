@@ -100,7 +100,7 @@ async def main_async(limit: int | None) -> int:
         results.append(r)
         print(f"  pass={r['pass']}  elapsed={r['elapsed_s']}s")
         if i < len(cases):
-            await asyncio.sleep(3)
+            await asyncio.sleep(30)
 
     passed = sum(1 for r in results if r["pass"])
     print(f"\n{passed}/{len(results)} cases passed")
