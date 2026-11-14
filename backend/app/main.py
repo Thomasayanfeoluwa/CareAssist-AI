@@ -11,8 +11,8 @@ from app.api.routes import router
 from app.config import Settings, get_settings
 from app.logging_setup import configure_logging
 from app.ratelimit import limiter
-from app.services.session_store import build_session_store
 from app.services.rag import RAGService
+from app.services.session_store import build_session_store
 
 logger = logging.getLogger(__name__)
 

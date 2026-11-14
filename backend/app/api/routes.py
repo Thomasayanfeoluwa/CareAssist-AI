@@ -7,9 +7,9 @@ from app.api.deps import SettingsDep, get_or_set_session_id, require_bearer_toke
 from app.prompts.system import build_system_prompt
 from app.ratelimit import limiter
 from app.services.llm import LLMService
+from app.services.query_rewriter import rewrite_query
 from app.services.rag import RAGService, RetrievedChunk
 from app.services.session_store import SessionStore
-from app.services.query_rewriter import rewrite_query
 
 logger = logging.getLogger(__name__)
 

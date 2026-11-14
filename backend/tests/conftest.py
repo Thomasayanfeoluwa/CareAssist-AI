@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -28,7 +26,7 @@ def _set_env(monkeypatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _reset_limiter() -> None:
+def _reset_limiter(_set_env) -> None:  # depends on _set_env: env vars must be set first
     from app.ratelimit import limiter
     limiter.reset()
 

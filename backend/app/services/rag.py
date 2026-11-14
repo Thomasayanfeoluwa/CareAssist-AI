@@ -2,21 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pinecone import Pinecone
 
 from app.config import Settings
 from app.services.embedder import Embedder
+from app.services.relevance import JUDGE_ANSWER_THRESHOLD, score_chunks_for_question
 from app.services.types import RetrievedChunk
 from app.services.web_search import WebSearchService
 
-from app.services.relevance import (
-    JUDGE_ANSWER_THRESHOLD,
-    score_chunks_for_question,
-)
+if TYPE_CHECKING:
+    from app.services.llm import LLMService
 
 logger = logging.getLogger(__name__)
+
 
 DEFAULT_TOP_K = 3
 MIN_PDF_HITS = 2
@@ -56,7 +56,7 @@ class PineconeRetriever:
         for match in res["matches"]:
             md = match["metadata"]
             page_raw = md.get("page")
-            page = int(page_raw) if isinstance(page_raw, (int, float)) else None
+            page = int(page_raw) if isinstance(page_raw, int | float) else None
             out.append(
                 RetrievedChunk(
                     source="pdf",
@@ -123,12 +123,14 @@ class RAGService:
             self._web = None
         return self._web
 
-    def _llm_for_judge(self) -> "LLMService":
-    # Lazy + cached. Constructing a new LLMService per request is
-    # wasteful; the constructor sets module-level litellm flags.
+    def _llm_for_judge(self) -> LLMService:
+        # Lazy + cached. Constructing a new LLMService per request is
+        # wasteful; the constructor sets module-level litellm flags.
         if not hasattr(self, "_judge_llm"):
             from app.services.llm import LLMService
+
             self._judge_llm = LLMService(self._settings)
+
         return self._judge_llm
 
     async def retrieve(

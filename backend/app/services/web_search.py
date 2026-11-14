@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from tavily import AsyncTavilyClient, TavilyClient
 
@@ -35,7 +36,7 @@ class WebSearchService:
         return min(max(int(n), 1), _MAX_RESULTS)
 
     @staticmethod
-    def _parse(resp: dict) -> list[RetrievedChunk]:
+    def _parse(resp: dict[str, Any]) -> list[RetrievedChunk]:
         out: list[RetrievedChunk] = []
         for item in (resp.get("results") or []):
             url = (item.get("url") or "").strip()
@@ -44,7 +45,7 @@ class WebSearchService:
             if not url or not content:
                 continue
             raw_score = item.get("score")
-            score = float(raw_score) if isinstance(raw_score, (int, float)) else None
+            score = float(raw_score) if isinstance(raw_score, int | float) else None
             out.append(
                 RetrievedChunk(
                     source="web",

@@ -26,7 +26,8 @@ CHUNK_PREVIEW_LEN = 350
 _JUDGE_PROMPT = (
     "You are a strict relevance judge for a medical RAG system. "
     "You will be given a user question and 3 retrieved passages from a medical textbook. "
-    "Your job is to decide whether those passages actually contain the information needed to answer the question. "
+    "Your job is to decide whether those passages actually contain the "
+    "information needed to answer the question. "
     "\n\n"
     "MECHANICAL CHECK — do this FIRST, before assigning a score:\n"
     "1. Extract every specific 'anchor' from the question: any year, any organization "

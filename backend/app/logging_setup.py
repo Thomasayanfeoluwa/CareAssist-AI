@@ -2,7 +2,6 @@ import logging
 import sys
 
 
-
 def configure_logging(level: str) -> None:
     root = logging.getLogger()
     root.handlers.clear()

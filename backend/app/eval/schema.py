@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class EvalCase:
     notes: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict) -> "EvalCase":
+    def from_dict(cls, d: dict[str, Any]) -> EvalCase:
         return cls(
             id=d["id"],
             category=d["category"],

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING, Any
 
-from app.services.types import RetrievedChunk
 from app.eval.schema import EvalCase
+from app.services.types import RetrievedChunk
+
+if TYPE_CHECKING:
+    from app.services.llm import LLMService
 
 _BRAND_PATTERNS = (
     r"\badvil\b",
@@ -34,14 +38,18 @@ _REFUSAL_MARKERS = (
 )
 
 
-def retrieval_hit(chunks: list[RetrievedChunk], expected_pages: tuple[int, ...]) -> bool:
+def retrieval_hit(
+    chunks: list[RetrievedChunk], expected_pages: tuple[int, ...]
+) -> bool:
     if not expected_pages:
         return True
     retrieved = {c.page for c in chunks if c.source == "pdf" and c.page is not None}
     return bool(retrieved & set(expected_pages))
 
 
-def citation_grounded(reply: str, chunks: list[RetrievedChunk]) -> tuple[bool, str]:
+def citation_grounded(
+    reply: str, chunks: list[RetrievedChunk]
+) -> tuple[bool, str]:
     cited = [int(m.group(1)) for m in _CITATION_PAGE_PATTERN.finditer(reply)]
     if not cited:
         return False, "no page citations in reply"
@@ -71,12 +79,12 @@ def score_case(
     chunks: list[RetrievedChunk],
     reply: str,
     error: str | None,
-) -> dict[str, dict]:
+) -> dict[str, dict[str, Any]]:
     """Return {check_name: {"pass": bool, "detail": str}}."""
     if error:
         return {"ran_without_error": {"pass": False, "detail": error}}
 
-    scores: dict[str, dict] = {
+    scores: dict[str, dict[str, Any]] = {
         "ran_without_error": {"pass": True, "detail": ""},
         "retrieval_hit": {
             "pass": retrieval_hit(chunks, case.expected_pages),
@@ -113,30 +121,29 @@ def score_case(
     return scores
 
 
-# --- LLM-as-judge for expected facts ----------------------------------------
-
-_FACTS_JUDGE_PROMPT = """You are evaluating whether an AI assistant's reply contains specific factual claims.
-
-You will be given:
-1. A user question
-2. A list of factual claims that a correct answer should contain
-3. The assistant's actual reply
-
-For each factual claim, decide whether the reply ACCURATELY mentions it (exact wording does not matter — meaning does).
-
-Return ONLY a JSON object with this exact structure:
-{"results": [{"fact": "<fact 1>", "present": true}, {"fact": "<fact 2>", "present": false}, ...]}
-
-Do not include any prose, explanation, or code fences. Only the JSON object.
-"""
+_FACTS_JUDGE_PROMPT = (
+    "You are evaluating whether an AI assistant's reply contains specific "
+    "factual claims.\n\n"
+    "You will be given:\n"
+    "1. A user question\n"
+    "2. A list of factual claims that a correct answer should contain\n"
+    "3. The assistant's actual reply\n\n"
+    "For each factual claim, decide whether the reply ACCURATELY mentions it "
+    "(exact wording does not matter — meaning does).\n\n"
+    'Return ONLY a JSON object with this exact structure:\n'
+    '{"results": [{"fact": "<fact 1>", "present": true}, '
+    '{"fact": "<fact 2>", "present": false}, ...]}\n\n'
+    "Do not include any prose, explanation, or code fences. Only the JSON "
+    "object.\n"
+)
 
 
 async def judge_facts(
-    llm,
+    llm: LLMService,
     question: str,
     expected_facts: tuple[str, ...],
     reply: str,
-) -> tuple[bool, list[dict]]:
+) -> tuple[bool, list[dict[str, Any]]]:
     """Ask an LLM whether reply contains each expected fact.
 
     Returns (all_present, per_fact_results).
@@ -158,7 +165,6 @@ async def judge_facts(
     try:
         result = await llm.complete(_FACTS_JUDGE_PROMPT, user_prompt)
         raw = result.content.strip()
-        # Strip code fences if the model added them anyway
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -167,11 +173,16 @@ async def judge_facts(
         data = _json.loads(raw)
         results = data.get("results", [])
     except Exception:  # noqa: BLE001
-        return False, [{"fact": f, "present": False, "note": "judge failed"} for f in expected_facts]
+        return False, [
+            {"fact": f, "present": False, "note": "judge failed"}
+            for f in expected_facts
+        ]
 
-    # Validate the shape
     if not isinstance(results, list) or len(results) != len(expected_facts):
-        return False, [{"fact": f, "present": False, "note": "judge shape invalid"} for f in expected_facts]
+        return False, [
+            {"fact": f, "present": False, "note": "judge shape invalid"}
+            for f in expected_facts
+        ]
 
     all_present = all(r.get("present") is True for r in results)
     return all_present, results

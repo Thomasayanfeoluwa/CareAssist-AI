@@ -4,18 +4,18 @@ import argparse
 import asyncio
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from app.api.routes import _filter_chunks_by_score
 from app.config import get_settings
+from app.eval.metrics import judge_facts, score_case
+from app.eval.schema import EvalCase
 from app.logging_setup import configure_logging
 from app.prompts.system import build_system_prompt
 from app.services.llm import LLMService
 from app.services.rag import RAGService
-
-from app.eval.metrics import judge_facts, score_case
-from app.eval.schema import EvalCase
 
 DATASET_PATH = Path(__file__).resolve().parent / "dataset.jsonl"
 REPORT_DIR = Path(__file__).resolve().parents[3] / "docs" / "eval"
@@ -32,7 +32,9 @@ def load_cases(limit: int | None = None) -> list[EvalCase]:
     return cases[:limit] if limit else cases
 
 
-async def run_case(case: EvalCase, rag: RAGService, llm: LLMService) -> dict:
+async def run_case(
+    case: EvalCase, rag: RAGService, llm: LLMService
+) -> dict[str, Any]:
     start = time.perf_counter()
     chunks = []
     reply = ""
@@ -55,7 +57,7 @@ async def run_case(case: EvalCase, rag: RAGService, llm: LLMService) -> dict:
     # main call already errored — a judge on empty reply is meaningless).
     if error or not case.expected_facts:
         facts_pass = True
-        facts_detail: list[dict] | str = ""
+        facts_detail: list[dict[str, Any]] | str = ""
     else:
         facts_pass, facts_detail = await judge_facts(
             llm, case.question, case.expected_facts, reply
@@ -83,6 +85,7 @@ async def run_case(case: EvalCase, rag: RAGService, llm: LLMService) -> dict:
         "pass": all(v["pass"] for v in scores.values()),
     }
 
+
 async def main_async(limit: int | None) -> int:
     settings = get_settings()
     configure_logging(settings.LOG_LEVEL)
@@ -90,7 +93,7 @@ async def main_async(limit: int | None) -> int:
     print(f"Running {len(cases)} eval case(s)...")
     rag = RAGService(settings)
     llm = LLMService(settings)
-    results = []
+    results: list[dict[str, Any]] = []
     for i, case in enumerate(cases, 1):
         print(f"[{i}/{len(cases)}] {case.id}")
         r = await run_case(case, rag, llm)
@@ -113,31 +116,55 @@ async def main_async(limit: int | None) -> int:
     return 0 if passed == len(results) else 1
 
 
-def _render_markdown(results: list[dict]) -> str:
+def _render_markdown(results: list[dict[str, Any]]) -> str:
     passed = sum(1 for r in results if r["pass"])
     total = len(results)
     total_elapsed = sum(r["elapsed_s"] for r in results)
     lines: list[str] = []
     lines.append("# CareAssist — Evaluation Report")
     lines.append("")
-    lines.append(f"Generated: {datetime.now(timezone.utc).isoformat()}")
+    lines.append(f"Generated: {datetime.now(UTC).isoformat()}")
     lines.append("")
     lines.append("## Scope and limitations")
     lines.append("")
     lines.append("This evaluation covers:")
     lines.append("")
-    lines.append("- **Retrieval hit**: expected PDF page appears in the retrieved chunks")
-    lines.append("- **Citation grounding**: every page cited in the reply was actually retrieved")
-    lines.append("- **No dosage**: no numeric dosages (`500 mg`, `2 tablets`, ...) in replies")
-    lines.append("- **No brand name**: no Advil / Motrin / Tylenol / Bayer / Aleve / Excedrin")
-    lines.append("- **Red-flag refusal**: emergency questions trigger escalation language")
-    lines.append("- **Forbidden-phrase blocklist**: per-case specific phrases that must not appear")
-    lines.append("- **Facts present** (LLM-as-judge): the reply contains the expected factual claims for the case")
+    lines.append(
+        "- **Retrieval hit**: expected PDF page appears in the retrieved chunks"
+    )
+    lines.append(
+        "- **Citation grounding**: every page cited in the reply was actually retrieved"
+    )
+    lines.append(
+        "- **No dosage**: no numeric dosages (`500 mg`, `2 tablets`, ...) in replies"
+    )
+    lines.append(
+        "- **No brand name**: no Advil / Motrin / Tylenol / Bayer / Aleve / Excedrin"
+    )
+    lines.append(
+        "- **Red-flag refusal**: emergency questions trigger escalation language"
+    )
+    lines.append(
+        "- **Forbidden-phrase blocklist**: per-case specific phrases that must not appear"
+    )
+    lines.append(
+        "- **Facts present** (LLM-as-judge): the reply contains "
+        "the expected factual claims for the case"
+    )
     lines.append("")
-    lines.append("**This evaluation does NOT verify medical correctness of answers**")
-    lines.append("beyond citation grounding. A reply that cites a real page but misstates")
-    lines.append("its content would pass every check here. Clinical review of answers is a")
-    lines.append("**Stage 9 pre-pilot deliverable** — see `docs/eval/review.md` for the verification log and outstanding clinical sign-off.")
+    lines.append(
+        "**This evaluation does NOT verify medical correctness of answers**"
+    )
+    lines.append(
+        "beyond citation grounding. A reply that cites a real page but misstates"
+    )
+    lines.append(
+        "its content would pass every check here. Clinical review of answers is a"
+    )
+    lines.append(
+        "**Stage 9 pre-pilot deliverable** — see `docs/eval/review.md` "
+        "for the verification log and outstanding clinical sign-off."
+    )
     lines.append("")
     lines.append("## Summary")
     lines.append("")

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from app.config import Settings
 from app.services.session_store import (
     MAX_ENTRIES,
