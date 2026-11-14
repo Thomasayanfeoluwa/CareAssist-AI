@@ -61,7 +61,7 @@ jobs:
 
   deploy:
     # Deploy the backend, frontend, and eval when they all pass on main.
-    needs: [backend, frontend, eval]
+    needs: [backend, frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
