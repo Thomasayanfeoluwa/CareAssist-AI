@@ -46,6 +46,7 @@ jobs:
       PINECONE_INDEX: "carebot-e5"
       LITELLM_PRIMARY_MODEL: "groq/openai/gpt-oss-120b"
       LITELLM_FALLBACK_MODEL: "openrouter/openai/gpt-4o-mini"
+      LLM_TEMPERATURE: "0.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -61,7 +62,7 @@ jobs:
 
   deploy:
     # Deploy the backend, frontend, and eval when they all pass on main.
-    needs: [backend, frontend]
+    needs: [backend, frontend, eval]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
