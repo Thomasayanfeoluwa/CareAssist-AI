@@ -50,13 +50,47 @@ def retrieval_hit(
 def citation_grounded(
     reply: str, chunks: list[RetrievedChunk]
 ) -> tuple[bool, str]:
-    cited = [int(m.group(1)) for m in _CITATION_PAGE_PATTERN.finditer(reply)]
-    if not cited:
-        return False, "no page citations in reply"
-    retrieved = {c.page for c in chunks if c.source == "pdf" and c.page is not None}
-    ungrounded = [p for p in cited if p not in retrieved]
-    if ungrounded:
-        return False, f"cited pages not retrieved: {ungrounded}"
+    """Check that cited sources appear in the retrieved chunks.
+
+    Accepts BOTH PDF page citations and web URL citations. The reply is
+    grounded if every cited source (PDF page or web URL) appears in what
+    was actually retrieved. This is required for fallback cases where the
+    answer legitimately cites web sources because the PDF did not cover
+    the question.
+    """
+    cited_pages = [int(m.group(1)) for m in _CITATION_PAGE_PATTERN.finditer(reply)]
+    cited_urls = re.findall(r"https?://[^\s\)\]\>]+", reply)
+
+    if not cited_pages and not cited_urls:
+        return False, "no PDF page or web URL citations in reply"
+
+    retrieved_pages = {
+        c.page for c in chunks if c.source == "pdf" and c.page is not None
+    }
+    retrieved_urls = {
+        (c.link or "").rstrip("/")
+        for c in chunks if c.source == "web" and c.link
+    }
+
+    ungrounded_pages = [p for p in cited_pages if p not in retrieved_pages]
+    if ungrounded_pages:
+        return False, f"cited PDF pages not retrieved: {ungrounded_pages}"
+
+    ungrounded_urls: list[str] = []
+    for cited in cited_urls:
+        cited_norm = cited.rstrip("/")
+        # Match if the cited URL equals, starts with, or contains a
+        # retrieved URL. Models often truncate, add query params, or
+        # drop trailing slashes.
+        if not any(
+            cited_norm == r or cited_norm.startswith(r) or r in cited_norm
+            for r in retrieved_urls
+        ):
+            ungrounded_urls.append(cited)
+
+    if ungrounded_urls:
+        return False, f"cited web URLs not retrieved: {ungrounded_urls}"
+
     return True, ""
 
 
