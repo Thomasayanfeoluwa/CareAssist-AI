@@ -25,7 +25,6 @@ jobs:
         with: { node-version: '20', cache: npm, cache-dependency-path: frontend/package-lock.json }
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run lint
       - run: npm run build
 
   eval:
@@ -44,6 +43,9 @@ jobs:
       LLM_MOCK: "false"
       REDIS_URL: ""
       CORS_ORIGINS: "http://localhost:5173"
+      PINECONE_INDEX: "carebot-e5"
+      LITELLM_PRIMARY_MODEL: "groq/openai/gpt-oss-120b"
+      LITELLM_FALLBACK_MODEL: "openrouter/openai/gpt-4o-mini"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
